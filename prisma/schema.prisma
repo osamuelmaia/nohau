@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Settings {
+  id            String   @id @default("default")
+  metaToken     String?
+  adAccountId   String?
+  adAccountName String?
+  pageId        String?
+  openaiKey     String?
+  youtubePrompt String?  // custom system prompt for YouTube Ops generation
+  updatedAt     DateTime @updatedAt
+}
+
+model YoutubeJob {
+  id         String   @id @default(cuid())
+  transcript String
+  profile    String
+  result     String   // JSON: { titles, descriptions, hashtags, tags, chapters, cta }
+  createdAt  DateTime @default(now())
+}
+
+model AuditJob {
+  id          String   @id @default(cuid())
+  url         String
+  pageType    String
+  goal        String
+  audience    String
+  offer       String
+  notes       String   @default("")
+  result      String   // full markdown audit
+  createdAt   DateTime @default(now())
+}
+
+model CliperJob {
+  id         String   @id
+  fileName   String
+  duration   Float
+  transcript String
+  clips      String   // JSON: ClipSuggestion[]
+  createdAt  DateTime @default(now())
+}
+
+model CopyPersona {
+  id                String    @id @default(cuid())
+  name              String    // label for this persona config (e.g. "João - Marketing")
+  expertName        String    // full name of the expert
+  niche             String    // market/niche (e.g. "Marketing Digital para Infoprodutores")
+  targetAvatar      String    // who is the ideal customer — age, job, pains, dreams
+  corePromise       String    // the main transformation/result delivered
+  toneOfVoice       String    // e.g. "direto, provocativo, usa humor sarcástico"
+  writingStyle      String    // e.g. "storytelling + dados + urgência real"
+  painPoints        String    // top pain points of the audience
+  objections        String    // main objections + how expert handles them
+  uniqueMechanism   String    // named method or unique approach
+  socialProof       String    // results, numbers, testimonials the expert uses
+  vocabulary        String    // characteristic words/expressions to use
+  avoidVocabulary   String    @default("") // words to avoid
+  copyReferences    String    @default("") // sample copy to calibrate style
+  products          String    @default("") // product names + price points
+  pricePositioning  String    @default("") // how price is justified/anchored
+  ctaStyle          String    @default("") // how CTAs are written
+  brandValues       String    @default("") // core positioning values
+  competitors       String    @default("") // how to differentiate
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  jobs              CopyJob[]
+}
+
+model CopyJob {
+  id        String      @id @default(cuid())
+  personaId String
+  persona   CopyPersona @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  copyType  String      // vsl | email | ad | salespage | capturepage
+  subtype   String      @default("")
+  brief     String
+  result    String      // JSON with structured sections
+  createdAt DateTime    @default(now())
+}
+
+model ApiLog {
+  id           String   @id @default(cuid())
+  operation    String
+  method       String
+  endpoint     String
+  requestBody  String   @default("")
+  responseBody String   @default("")
+  statusCode   Int?
+  success      Boolean
+  errorMessage String   @default("")
+  durationMs   Int?
+  createdAt    DateTime @default(now())
+}
