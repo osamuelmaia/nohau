@@ -201,6 +201,7 @@ export default function CliperPage() {
       const blob = await upload(file.name, fileToUpload, {
         access: 'public',
         handleUploadUrl: '/api/upload',
+        addRandomSuffix: true,
       })
       setUploadPct(100)
 

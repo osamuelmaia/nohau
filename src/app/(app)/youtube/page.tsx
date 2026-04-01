@@ -304,6 +304,7 @@ export default function YoutubeOpsPage() {
       const blob = await upload(file.name, fileToUpload, {
         access: 'public',
         handleUploadUrl: '/api/upload',
+        addRandomSuffix: true,
       })
 
       // ── 2. Enviar só a URL para a API de transcrição ────────────────────────

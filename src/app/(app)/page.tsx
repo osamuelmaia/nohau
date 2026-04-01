@@ -175,6 +175,7 @@ export default function HomePage() {
         const blob = await upload(cf.file.name, fileToUpload, {
           access: 'public',
           handleUploadUrl: '/api/upload',
+          addRandomSuffix: true,
         })
         results.push({
           storedName: blob.pathname,
