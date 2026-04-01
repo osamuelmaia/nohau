@@ -1,33 +1,29 @@
+import { handleUpload, type HandleUploadBody } from '@vercel/blob/client'
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile } from 'fs/promises'
-import { existsSync, mkdirSync } from 'fs'
-import path from 'path'
-import { v4 as uuid } from 'uuid'
-
-const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads')
 
 export async function POST(req: NextRequest) {
-  if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true })
+  const body = await req.json() as HandleUploadBody
 
-  const form = await req.formData()
-  const file = form.get('file') as File | null
-  if (!file) return NextResponse.json({ success: false, error: 'Arquivo não enviado' }, { status: 400 })
-
-  const ext = file.name.split('.').pop() ?? 'bin'
-  const storedName = `${uuid()}.${ext}`
-  const filePath = path.join(UPLOAD_DIR, storedName)
-
-  await writeFile(filePath, Buffer.from(await file.arrayBuffer()))
-
-  return NextResponse.json({
-    success: true,
-    data: {
-      storedName,
-      url: `/uploads/${storedName}`,
-      originalName: file.name,
-      mimeType: file.type,
-      size: file.size,
-      type: file.type.startsWith('video/') ? 'VIDEO' : 'IMAGE',
-    },
-  })
+  try {
+    const jsonResponse = await handleUpload({
+      body,
+      request: req,
+      onBeforeGenerateToken: async (_pathname) => ({
+        allowedContentTypes: [
+          'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+          'video/mp4', 'video/quicktime', 'video/avi', 'video/webm', 'video/x-msvideo',
+        ],
+        maximumSizeInBytes: 500 * 1024 * 1024, // 500 MB
+      }),
+      onUploadCompleted: async () => {
+        // Upload completed — no extra processing needed
+      },
+    })
+    return NextResponse.json(jsonResponse)
+  } catch (error) {
+    return NextResponse.json(
+      { error: (error as Error).message },
+      { status: 400 },
+    )
+  }
 }

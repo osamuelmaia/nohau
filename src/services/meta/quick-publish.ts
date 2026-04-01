@@ -12,7 +12,8 @@ import path from 'path'
 export type CampaignType = 'CBO' | 'ABO'
 
 export interface UploadedFile {
-  storedName: string   // filename in public/uploads/
+  storedName: string   // filename in public/uploads/ (local) or blob pathname (Vercel)
+  url?: string         // Vercel Blob public URL — used for fetching file on server
   originalName: string
   mimeType: string
   type: 'IMAGE' | 'VIDEO'
@@ -133,18 +134,32 @@ function getPromotedObject(
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-function filePath(storedName: string) {
+function localFilePath(storedName: string) {
   return path.join(process.cwd(), 'public', 'uploads', storedName)
 }
 
+// Read file bytes — from Vercel Blob URL (production) or local disk (dev)
+async function readFileBytes(file: UploadedFile): Promise<Buffer> {
+  if (file.url?.startsWith('http')) {
+    const res = await fetch(file.url)
+    if (!res.ok) throw new Error(`Falha ao baixar arquivo da nuvem: ${res.status} ${res.statusText}`)
+    return Buffer.from(await res.arrayBuffer())
+  }
+  // Local development fallback — read from public/uploads/
+  return fs.readFileSync(localFilePath(file.storedName))
+}
+
 // ── Validate file size before upload ─────────────────────────────────────────
-function validateFileSize(stored: string, type: 'IMAGE' | 'VIDEO', original: string): void {
-  const stats = fs.statSync(filePath(stored))
-  const limit = type === 'IMAGE' ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES
+function validateFileSize(file: UploadedFile): void {
+  // When using Vercel Blob, the size limit is enforced at upload time (500 MB cap)
+  if (file.url?.startsWith('http')) return
+
+  const stats = fs.statSync(localFilePath(file.storedName))
+  const limit = file.type === 'IMAGE' ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES
   const limitMB = limit / 1024 / 1024
   if (stats.size > limit) {
     throw new Error(
-      `Arquivo "${original}" excede o limite de ${limitMB} MB ` +
+      `Arquivo "${file.originalName}" excede o limite de ${limitMB} MB ` +
       `(${(stats.size / 1024 / 1024).toFixed(1)} MB). Reduza o tamanho antes de enviar.`,
     )
   }
@@ -155,12 +170,12 @@ function validateFileSize(stored: string, type: 'IMAGE' | 'VIDEO', original: str
 // The response key will be the field name, not "bytes".
 // e.g.: fd.append('myfile.jpg', blob) → response: { images: { 'myfile.jpg': { hash } } }
 async function uploadImage(
-  client: MetaApiClient, accountId: string, stored: string,
+  client: MetaApiClient, accountId: string, file: UploadedFile,
 ): Promise<string> {
-  const buf = fs.readFileSync(filePath(stored))
+  const buf = await readFileBytes(file)
   const fd = new FormData()
-  // Use stored filename as the field name — Meta returns the hash keyed by this name
-  fd.append(stored, new Blob([buf]), stored)
+  // Use storedName as the field name — Meta returns the hash keyed by this name
+  fd.append(file.storedName, new Blob([new Uint8Array(buf)]), file.storedName)
 
   type ImgResp = { images: Record<string, { hash: string }> }
   const res = await withRetry(() =>
@@ -175,11 +190,11 @@ async function uploadImage(
 
 // ── Upload video to Meta ───────────────────────────────────────────────────────
 async function uploadVideo(
-  client: MetaApiClient, accountId: string, stored: string, title: string,
+  client: MetaApiClient, accountId: string, file: UploadedFile, title: string,
 ): Promise<string> {
-  const buf = fs.readFileSync(filePath(stored))
+  const buf = await readFileBytes(file)
   const fd = new FormData()
-  fd.append('source', new Blob([buf]), stored)
+  fd.append('source', new Blob([new Uint8Array(buf)]), file.storedName)
   fd.append('title', title)
 
   type VidResp = { video_id: string }
@@ -282,7 +297,7 @@ export async function quickPublish(payload: PublishPayload): Promise<PublishResu
 
     try {
       // ── Size guard ─────────────────────────────────────────────────────────
-      validateFileSize(file.storedName, file.type, file.originalName)
+      validateFileSize(file)
 
       // ── Create adset for this creative ─────────────────────────────────────
       const adSetName = payload.files.length === 1
@@ -333,10 +348,10 @@ export async function quickPublish(payload: PublishPayload): Promise<PublishResu
       let videoId: string | undefined
 
       if (file.type === 'IMAGE') {
-        imageHash = await uploadImage(client, accountId, file.storedName)
+        imageHash = await uploadImage(client, accountId, file)
         await log('UPLOAD_IMAGE', 'POST', `${accountId}/adimages`, { file: file.originalName }, { hash: imageHash }, true)
       } else {
-        videoId = await uploadVideo(client, accountId, file.storedName, adName)
+        videoId = await uploadVideo(client, accountId, file, adName)
         await log('UPLOAD_VIDEO', 'POST', `${accountId}/advideos`, { file: file.originalName }, { video_id: videoId }, true)
       }
 

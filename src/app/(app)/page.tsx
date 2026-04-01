@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { upload } from '@vercel/blob/client'
 import { useDropzone } from 'react-dropzone'
 import { parseFile, groupCreatives, CreativeFile, CreativeGroup } from '@/lib/group-files'
 import { cn, formatFileSize } from '@/lib/utils'
@@ -160,20 +161,28 @@ export default function HomePage() {
     })
   }
 
-  // ── Upload all files to local server ────────────────────────────────────
+  // ── Upload all files via Vercel Blob (client-side, bypasses 4.5MB limit) ─
   const uploadAll = async () => {
     if (!pendingFiles.length) return
     setUploading(true)
     const results: UploadedFile[] = []
 
     for (const cf of pendingFiles) {
-      const fd = new FormData()
-      fd.append('file', cf.file)
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      const json = await res.json()
-      if (json.success) {
-        results.push({ ...json.data, group: cf.group, placement: cf.placement })
-      } else {
+      try {
+        const blob = await upload(cf.file.name, cf.file, {
+          access: 'public',
+          handleUploadUrl: '/api/upload',
+        })
+        results.push({
+          storedName: blob.pathname,
+          url: blob.url,
+          originalName: cf.file.name,
+          mimeType: cf.file.type,
+          type: cf.file.type.startsWith('video/') ? 'VIDEO' : 'IMAGE',
+          group: cf.group,
+          placement: cf.placement,
+        })
+      } catch {
         toast.error(`Erro ao enviar ${cf.file.name}`)
       }
     }
