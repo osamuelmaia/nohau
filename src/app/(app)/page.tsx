@@ -172,10 +172,11 @@ export default function HomePage() {
         const fileToUpload = cf.file.type
           ? cf.file
           : new File([cf.file], cf.file.name, { type: 'application/octet-stream' })
-        const blob = await upload(cf.file.name, fileToUpload, {
+        const ext = cf.file.name.includes('.') ? cf.file.name.split('.').pop() : 'bin'
+        const uniqueName = `${crypto.randomUUID()}.${ext}`
+        const blob = await upload(uniqueName, fileToUpload, {
           access: 'public',
           handleUploadUrl: '/api/upload',
-          addRandomSuffix: true,
         })
         results.push({
           storedName: blob.pathname,

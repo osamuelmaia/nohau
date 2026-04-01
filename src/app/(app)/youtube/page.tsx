@@ -301,10 +301,11 @@ export default function YoutubeOpsPage() {
       const fileToUpload = file.type
         ? file
         : new File([file], file.name, { type: 'application/octet-stream' })
-      const blob = await upload(file.name, fileToUpload, {
+      const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin'
+      const uniqueName = `${crypto.randomUUID()}.${ext}`
+      const blob = await upload(uniqueName, fileToUpload, {
         access: 'public',
         handleUploadUrl: '/api/upload',
-        addRandomSuffix: true,
       })
 
       // ── 2. Enviar só a URL para a API de transcrição ────────────────────────
