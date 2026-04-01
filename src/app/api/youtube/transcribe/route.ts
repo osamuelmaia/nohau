@@ -3,52 +3,25 @@ import OpenAI, { toFile } from 'openai'
 import { prisma } from '@/services/db/client'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { unlink, stat } from 'fs/promises'
-import { createWriteStream, createReadStream } from 'fs'
+import { unlink, stat, writeFile } from 'fs/promises'
+import { createReadStream } from 'fs'
 import { Readable } from 'stream'
-import busboy from 'busboy'
+import { pipeline } from 'stream/promises'
 
 export const maxDuration = 300
 
 const VIDEO_EXTS = /\.(mp4|mov|avi|mkv|webm|m4v)$/i
 const AUDIO_EXTS = /\.(mp3|m4a|wav|aac|ogg|flac)$/i
 
-// ── Stream multipart diretamente para disco (sem limite de tamanho) ────────────
-function streamToDisk(req: NextRequest, destPath: string): Promise<{ filename: string; mimetype: string }> {
-  return new Promise((resolve, reject) => {
-    const contentType = req.headers.get('content-type') ?? ''
-    if (!contentType.includes('multipart/form-data')) {
-      return reject(new Error('Requisição não é multipart/form-data.'))
-    }
-
-    const bb = busboy({ headers: { 'content-type': contentType } })
-    let filename  = 'upload'
-    let mimetype  = 'application/octet-stream'
-    let received  = false
-
-    bb.on('file', (_field, fileStream, info) => {
-      received = true
-      filename = info.filename
-      mimetype = info.mimeType
-
-      const ws = createWriteStream(destPath)
-      ws.on('finish', () => resolve({ filename, mimetype }))
-      ws.on('error', reject)
-      fileStream.on('error', reject)
-      fileStream.pipe(ws)
-    })
-
-    bb.on('finish', () => {
-      if (!received) reject(new Error('Nenhum arquivo enviado.'))
-    })
-
-    bb.on('error', reject)
-
-    if (!req.body) return reject(new Error('Nenhum arquivo enviado.'))
-    const readable = Readable.fromWeb(req.body as Parameters<typeof Readable.fromWeb>[0])
-    readable.on('error', reject)
-    readable.pipe(bb)
-  })
+// ── Download blob URL diretamente para disco (streaming, sem carregar em memória) ─
+async function downloadToFile(blobUrl: string, destPath: string): Promise<void> {
+  const res = await fetch(blobUrl)
+  if (!res.ok) throw new Error(`Falha ao baixar arquivo da nuvem: ${res.status} ${res.statusText}`)
+  if (!res.body) throw new Error('Resposta sem corpo.')
+  await pipeline(
+    Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]),
+    (await import('fs')).createWriteStream(destPath),
+  )
 }
 
 // ── FFmpeg: re-encoda para MP3 32kbps mono 16kHz ──────────────────────────────
@@ -86,23 +59,20 @@ export async function POST(req: NextRequest) {
   let tempOutput: string | null = null
 
   try {
-    // ── 1. Detecta extensão pelo Content-Type header antes do upload ──────────
-    const contentType = req.headers.get('content-type') ?? ''
-    const ext = contentType.includes('video') ? 'mp4' : 'bin'
-    tempInput = join(tmpdir(), `zima-in-${Date.now()}.${ext}`)
+    const body = await req.json()
+    const { blobUrl, filename, mimetype } = body as { blobUrl: string; filename: string; mimetype: string }
 
-    // ── 2. Recebe arquivo via streaming (sem limite de tamanho) ───────────────
-    const { filename, mimetype } = await streamToDisk(req, tempInput)
+    if (!blobUrl) {
+      return NextResponse.json({ success: false, error: 'URL do arquivo não fornecida.' }, { status: 400 })
+    }
 
-    // Corrige extensão baseada no nome real do arquivo
-    const realExt = filename.includes('.') ? filename.split('.').pop()! : ext
-    const newInput = join(tmpdir(), `zima-in-${Date.now()}.${realExt}`)
-    const { rename } = await import('fs/promises')
-    await rename(tempInput, newInput)
-    tempInput = newInput
+    // ── 1. Determina extensão e baixa arquivo para /tmp ───────────────────────
+    const realExt  = filename?.includes('.') ? filename.split('.').pop()! : 'bin'
+    tempInput = join(tmpdir(), `zima-in-${Date.now()}.${realExt}`)
+    await downloadToFile(blobUrl, tempInput)
 
-    const isVideo = mimetype.startsWith('video/') || VIDEO_EXTS.test(filename)
-    const isAudio = mimetype.startsWith('audio/') || AUDIO_EXTS.test(filename)
+    const isVideo = mimetype?.startsWith('video/') || VIDEO_EXTS.test(filename ?? '')
+    const isAudio = mimetype?.startsWith('audio/') || AUDIO_EXTS.test(filename ?? '')
 
     if (!isVideo && !isAudio) {
       return NextResponse.json(
@@ -111,7 +81,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // ── 3. Re-encoda se for vídeo OU se o áudio for > 24.5 MB ────────────────
+    // ── 2. Re-encoda se for vídeo OU se o áudio for > 24.5 MB ────────────────
     const { size: inputSize } = await stat(tempInput)
     const needsReencode = isVideo || inputSize > 24.5 * 1024 * 1024
 
@@ -122,16 +92,16 @@ export async function POST(req: NextRequest) {
       mp3Path = tempOutput
     }
 
-    // ── 4. Verifica tamanho final ─────────────────────────────────────────────
+    // ── 3. Verifica tamanho final ─────────────────────────────────────────────
     const { size: finalSize } = await stat(mp3Path)
     if (finalSize > 24.5 * 1024 * 1024) {
       return NextResponse.json(
-        { success: false, error: `Áudio muito longo. O Whisper suporta até ~90 min. Divida em partes menores.` },
+        { success: false, error: 'Áudio muito longo. O Whisper suporta até ~90 min. Divida em partes menores.' },
         { status: 400 },
       )
     }
 
-    // ── 5. Transcreve com Whisper ─────────────────────────────────────────────
+    // ── 4. Transcreve com Whisper ─────────────────────────────────────────────
     const openai    = new OpenAI({ apiKey: settings.openaiKey })
     const audioFile = await toFile(createReadStream(mp3Path), 'audio.mp3', { type: 'audio/mpeg' })
 

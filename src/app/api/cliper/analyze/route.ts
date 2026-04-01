@@ -5,49 +5,22 @@ import { analyzeClips } from '@/services/openai/cliper'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { mkdir, unlink, rm, readdir, stat } from 'fs/promises'
-import { createWriteStream, createReadStream } from 'fs'
+import { createReadStream } from 'fs'
 import { Readable } from 'stream'
+import { pipeline } from 'stream/promises'
 import { v4 as uuid } from 'uuid'
-import busboy from 'busboy'
 
 export const maxDuration = 300
 
-// ── Stream multipart diretamente para disco (sem limite de tamanho) ────────────
-function streamToDisk(req: NextRequest, destPath: string): Promise<{ filename: string; mimetype: string }> {
-  return new Promise((resolve, reject) => {
-    const contentType = req.headers.get('content-type') ?? ''
-    if (!contentType.includes('multipart/form-data')) {
-      return reject(new Error('Requisição não é multipart/form-data.'))
-    }
-
-    const bb = busboy({ headers: { 'content-type': contentType } })
-    let filename  = 'upload.mp4'
-    let mimetype  = 'video/mp4'
-    let received  = false
-
-    bb.on('file', (_field, fileStream, info) => {
-      received = true
-      filename = info.filename
-      mimetype = info.mimeType
-
-      const ws = createWriteStream(destPath)
-      ws.on('finish', () => resolve({ filename, mimetype }))
-      ws.on('error', reject)
-      fileStream.on('error', reject)
-      fileStream.pipe(ws)
-    })
-
-    bb.on('finish', () => {
-      if (!received) reject(new Error('Nenhum arquivo enviado.'))
-    })
-
-    bb.on('error', reject)
-
-    if (!req.body) return reject(new Error('Nenhum arquivo enviado.'))
-    const readable = Readable.fromWeb(req.body as Parameters<typeof Readable.fromWeb>[0])
-    readable.on('error', reject)
-    readable.pipe(bb)
-  })
+// ── Download blob URL diretamente para disco (streaming, sem carregar em memória) ─
+async function downloadToFile(blobUrl: string, destPath: string): Promise<void> {
+  const res = await fetch(blobUrl)
+  if (!res.ok) throw new Error(`Falha ao baixar arquivo da nuvem: ${res.status} ${res.statusText}`)
+  if (!res.body) throw new Error('Resposta sem corpo.')
+  await pipeline(
+    Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]),
+    (await import('fs')).createWriteStream(destPath),
+  )
 }
 
 // ── FFmpeg helpers ─────────────────────────────────────────────────────────────
@@ -117,10 +90,17 @@ export async function POST(req: NextRequest) {
   const audioPath = join(jobDir, 'audio.mp3')
 
   try {
-    // ── 2. Recebe arquivo via streaming (sem limite de tamanho) ────────────────
-    const { filename, mimetype } = await streamToDisk(req, videoPath)
+    const body = await req.json()
+    const { blobUrl, filename, mimetype } = body as { blobUrl: string; filename: string; mimetype: string }
 
-    const isVideo = mimetype.startsWith('video/') || /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(filename)
+    if (!blobUrl) {
+      return NextResponse.json({ success: false, error: 'URL do arquivo não fornecida.' }, { status: 400 })
+    }
+
+    // ── 2. Baixa vídeo do Vercel Blob para /tmp (streaming) ───────────────────
+    await downloadToFile(blobUrl, videoPath)
+
+    const isVideo = mimetype?.startsWith('video/') || /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(filename ?? '')
     if (!isVideo) {
       await rm(jobDir, { recursive: true, force: true }).catch(() => {})
       return NextResponse.json({ success: false, error: 'Envie um arquivo de vídeo (MP4, MOV, MKV).' }, { status: 400 })
@@ -169,7 +149,7 @@ export async function POST(req: NextRequest) {
     await prisma.cliperJob.create({
       data: {
         id:         jobId,
-        fileName:   filename,
+        fileName:   filename ?? 'video.mp4',
         duration,
         transcript: transcription.text,
         clips:      JSON.stringify(clips),

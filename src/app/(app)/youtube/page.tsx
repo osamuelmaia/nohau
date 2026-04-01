@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { upload } from '@vercel/blob/client'
 import { useDropzone } from 'react-dropzone'
 import {
   Copy, Check, ChevronDown, ChevronUp, Youtube, RotateCcw, Sparkles, FileDown,
@@ -292,19 +293,28 @@ export default function YoutubeOpsPage() {
     const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(file.name)
 
     setTranscribing(true)
-    setTranscribeStatus(isVideo ? 'Convertendo MP4 para MP3...' : 'Transcrevendo...')
+    setTranscribeStatus('Enviando para nuvem...')
 
     try {
-      const formData = new FormData()
-      formData.append('file', file)
+      // ── 1. Upload para Vercel Blob (sem limite de tamanho) ──────────────────
+      const blob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+      })
 
-      // Para vídeos grandes o status muda após alguns segundos
+      // ── 2. Enviar só a URL para a API de transcrição ────────────────────────
+      setTranscribeStatus(isVideo ? 'Convertendo MP4 para MP3...' : 'Transcrevendo...')
+
       let statusTimer: ReturnType<typeof setTimeout> | null = null
       if (isVideo) {
         statusTimer = setTimeout(() => setTranscribeStatus('Transcrevendo com Whisper...'), 15_000)
       }
 
-      const res  = await fetch('/api/youtube/transcribe', { method: 'POST', body: formData })
+      const res = await fetch('/api/youtube/transcribe', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ blobUrl: blob.url, filename: file.name, mimetype: file.type }),
+      })
       if (statusTimer) clearTimeout(statusTimer)
 
       const json = await res.json()

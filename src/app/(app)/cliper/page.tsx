@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback } from 'react'
+import { upload } from '@vercel/blob/client'
 import { useDropzone } from 'react-dropzone'
 import {
   Scissors, Upload, Loader2, CheckCircle2, Circle, ChevronDown, ChevronUp,
@@ -164,7 +165,6 @@ export default function CliperPage() {
   const [clips,          setClips]          = useState<(ClipSuggestion & { selected: boolean })[]>([])
   const [cutting,        setCutting]        = useState(false)
   const [errorMsg,       setErrorMsg]       = useState('')
-  const xhrRef = useRef<XMLHttpRequest | null>(null)
 
   // ── Dropzone ────────────────────────────────────────────────────────────────
   const onDrop = useCallback((accepted: File[]) => {
@@ -186,55 +186,48 @@ export default function CliperPage() {
   })
 
   // ── Analisar vídeo ──────────────────────────────────────────────────────────
-  const analyze = () => {
+  const analyze = async () => {
     if (!file) return toast.error('Selecione um vídeo primeiro.')
 
-    const formData = new FormData()
-    formData.append('file', file)
-
-    const xhr = new XMLHttpRequest()
-    xhrRef.current = xhr
-
-    xhr.upload.addEventListener('progress', e => {
-      if (e.lengthComputable) setUploadPct(Math.round((e.loaded / e.total) * 100))
-    })
-
-    xhr.upload.addEventListener('load', () => {
-      setPhase('analyzing')
-      setAnalysisStep(0)
-      // Simula progresso visual dos steps (a API faz tudo sequencialmente)
-      setTimeout(() => setAnalysisStep(1), 5_000)
-      setTimeout(() => setAnalysisStep(2), 30_000)
-    })
-
-    xhr.addEventListener('load', () => {
-      try {
-        const json = JSON.parse(xhr.responseText)
-        if (!json.success) {
-          setErrorMsg(json.error ?? 'Erro desconhecido')
-          setPhase('error')
-          return
-        }
-        setJobId(json.jobId)
-        setDuration(json.duration)
-        setTranscript(json.transcript)
-        setClips(json.clips.map((c: ClipSuggestion) => ({ ...c, selected: c.score >= 7 })))
-        setPhase('review')
-      } catch {
-        setErrorMsg('Erro ao processar resposta do servidor.')
-        setPhase('error')
-      }
-    })
-
-    xhr.addEventListener('error', () => {
-      setErrorMsg('Erro de conexão. Verifique se o servidor está rodando.')
-      setPhase('error')
-    })
-
-    xhr.open('POST', '/api/cliper/analyze')
-    xhr.send(formData)
     setPhase('uploading')
     setUploadPct(0)
+
+    try {
+      // ── 1. Upload para Vercel Blob (sem limite de tamanho) ──────────────────
+      const blob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+      })
+      setUploadPct(100)
+
+      // ── 2. Inicia análise enviando apenas a URL ─────────────────────────────
+      setPhase('analyzing')
+      setAnalysisStep(0)
+      setTimeout(() => setAnalysisStep(1), 5_000)
+      setTimeout(() => setAnalysisStep(2), 30_000)
+
+      const res = await fetch('/api/cliper/analyze', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ blobUrl: blob.url, filename: file.name, mimetype: file.type }),
+      })
+
+      const json = await res.json()
+      if (!json.success) {
+        setErrorMsg(json.error ?? 'Erro desconhecido')
+        setPhase('error')
+        return
+      }
+
+      setJobId(json.jobId)
+      setDuration(json.duration)
+      setTranscript(json.transcript)
+      setClips(json.clips.map((c: ClipSuggestion) => ({ ...c, selected: c.score >= 7 })))
+      setPhase('review')
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Erro ao processar.')
+      setPhase('error')
+    }
   }
 
   // ── Cortar clips ─────────────────────────────────────────────────────────────
@@ -285,7 +278,6 @@ export default function CliperPage() {
   }
 
   const reset = () => {
-    xhrRef.current?.abort()
     setPhase('idle')
     setFile(null)
     setUploadPct(0)
