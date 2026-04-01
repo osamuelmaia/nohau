@@ -169,7 +169,10 @@ export default function HomePage() {
 
     for (const cf of pendingFiles) {
       try {
-        const blob = await upload(cf.file.name, cf.file, {
+        const fileToUpload = cf.file.type
+          ? cf.file
+          : new File([cf.file], cf.file.name, { type: 'application/octet-stream' })
+        const blob = await upload(cf.file.name, fileToUpload, {
           access: 'public',
           handleUploadUrl: '/api/upload',
         })

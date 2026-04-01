@@ -297,7 +297,11 @@ export default function YoutubeOpsPage() {
 
     try {
       // ── 1. Upload para Vercel Blob (sem limite de tamanho) ──────────────────
-      const blob = await upload(file.name, file, {
+      // Garante content-type válido (alguns browsers retornam string vazia)
+      const fileToUpload = file.type
+        ? file
+        : new File([file], file.name, { type: 'application/octet-stream' })
+      const blob = await upload(file.name, fileToUpload, {
         access: 'public',
         handleUploadUrl: '/api/upload',
       })

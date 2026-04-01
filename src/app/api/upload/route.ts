@@ -10,10 +10,19 @@ export async function POST(req: NextRequest) {
       request: req,
       onBeforeGenerateToken: async (_pathname) => ({
         allowedContentTypes: [
+          // Imagens
           'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
-          'video/mp4', 'video/quicktime', 'video/avi', 'video/webm', 'video/x-msvideo',
+          // Vídeos
+          'video/mp4', 'video/quicktime', 'video/avi', 'video/webm',
+          'video/x-msvideo', 'video/x-matroska', 'video/mkv', 'video/mov',
+          // Áudios
+          'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/m4a', 'audio/x-m4a',
+          'audio/wav', 'audio/wave', 'audio/x-wav', 'audio/aac',
+          'audio/ogg', 'audio/flac', 'audio/x-flac',
+          // Fallback genérico
+          'application/octet-stream',
         ],
-        maximumSizeInBytes: 500 * 1024 * 1024, // 500 MB
+        maximumSizeInBytes: 2 * 1024 * 1024 * 1024, // 2 GB
       }),
       onUploadCompleted: async () => {
         // Upload completed — no extra processing needed
