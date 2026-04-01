@@ -1,0 +1,12 @@
+{
+  "functions": {
+    "src/app/api/youtube/transcribe/route.ts": { "maxDuration": 300 },
+    "src/app/api/youtube/generate/route.ts":   { "maxDuration": 60  },
+    "src/app/api/youtube/export/route.ts":     { "maxDuration": 30  },
+    "src/app/api/cliper/analyze/route.ts":     { "maxDuration": 300 },
+    "src/app/api/cliper/cut/route.ts":         { "maxDuration": 300 },
+    "src/app/api/copy/generate/route.ts":      { "maxDuration": 60  },
+    "src/app/api/publish/route.ts":            { "maxDuration": 60  },
+    "src/app/api/audit/route.ts":              { "maxDuration": 60  }
+  }
+}
