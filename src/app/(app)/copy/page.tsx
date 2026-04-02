@@ -542,7 +542,7 @@ export default function CopyAgentPage() {
   ) => {
     setResult(prev => {
       if (!prev) return prev
-      const adData = prev as AdResult
+      const adData = prev as unknown as AdResult
       const updated = [...(adData[section] ?? [])]
       updated[index] = refined
       return { ...prev, [section]: updated }
