@@ -107,34 +107,18 @@ function CopyBtn({ text }: { text: string }) {
 
 function AnguloTooltip({ angulo }: { angulo: string }) {
   const [open, setOpen] = useState(false)
-  const [pos,  setPos]  = useState({ top: 0, left: 0 })
-  const btnRef = useRef<HTMLButtonElement>(null)
-
-  const handleOpen = () => {
-    if (!open && btnRef.current) {
-      const r   = btnRef.current.getBoundingClientRect()
-      const popW = 280
-      let left   = r.left
-      if (left + popW > window.innerWidth - 12) left = window.innerWidth - popW - 12
-      setPos({ top: r.bottom + 6, left })
-    }
-    setOpen(v => !v)
-  }
 
   return (
-    <div className="flex-shrink-0">
+    <div className="relative flex-shrink-0">
       <button
-        ref={btnRef}
-        onClick={handleOpen}
+        onClick={() => setOpen(v => !v)}
         className="p-1.5 rounded text-indigo-500/60 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors">
         <Info className="w-3.5 h-3.5" />
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-[9990]" onClick={() => setOpen(false)} />
-          <div
-            className="fixed z-[9999] w-[280px] bg-[#1e2130] border border-indigo-500/40 rounded-xl p-3.5 shadow-2xl shadow-black/50"
-            style={{ top: pos.top, left: pos.left }}>
+          <div className="absolute left-0 top-8 z-[9999] w-[270px] bg-[#1e2130] border border-indigo-500/40 rounded-xl p-3.5 shadow-2xl shadow-black/50">
             <div className="flex items-start gap-2">
               <Zap className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-indigo-200/90 leading-relaxed">{angulo}</p>
@@ -324,7 +308,7 @@ function AdSection({
   }
 
   return (
-    <div className="bg-surface-800 border border-surface-700 rounded-2xl overflow-hidden">
+    <div className="bg-surface-800 border border-surface-700 rounded-2xl">
       <div className="flex items-center justify-between px-5 py-4">
         <button onClick={() => setOpen(!open)}
           className="flex items-center gap-2 flex-1 text-left hover:opacity-80 transition-opacity">
