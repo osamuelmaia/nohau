@@ -4,20 +4,21 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   PenLine, Plus, Trash2, Edit3, Check, Copy, ChevronDown, ChevronUp,
   Sparkles, ArrowLeft, User, Loader2, FileText, Mail, Megaphone,
-  ShoppingCart, MousePointerClick, RotateCcw, BookOpen, X,
+  ShoppingCart, MousePointerClick, RotateCcw, BookOpen, Info,
+  MessageSquare, RefreshCw, FileDown, X, Zap,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Button from '@/components/ui/Button'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface PersonaSummary {
-  id:         string
-  name:       string
-  expertName: string
-  niche:      string
-  toneOfVoice:string
-  createdAt:  string
-  _count:     { jobs: number }
+  id:          string
+  name:        string
+  expertName:  string
+  niche:       string
+  toneOfVoice: string
+  createdAt:   string
+  _count:      { jobs: number }
 }
 
 interface PersonaFull extends PersonaSummary {
@@ -38,7 +39,20 @@ interface PersonaFull extends PersonaSummary {
   competitors:      string
 }
 
-type AppView = 'generate' | 'personas' | 'persona-form'
+interface AdVariation {
+  texto:  string
+  angulo: string
+}
+
+interface AdResult {
+  headlines:  AdVariation[]
+  textos:     AdVariation[]
+  titulos:    AdVariation[]
+  descricoes: AdVariation[]
+  ctas:       AdVariation[]
+}
+
+type AppView  = 'generate' | 'personas' | 'persona-form'
 type CopyType = 'vsl' | 'email' | 'ad' | 'salespage' | 'capturepage'
 
 // ── Copy type definitions ─────────────────────────────────────────────────────
@@ -46,13 +60,9 @@ const COPY_TYPES: {
   id: CopyType; label: string; icon: React.ElementType; desc: string
   subtypes?: { id: string; label: string }[]
 }[] = [
+  { id: 'vsl', label: 'VSL', icon: FileText, desc: 'Script completo de Video Sales Letter' },
   {
-    id: 'vsl', label: 'VSL', icon: FileText,
-    desc: 'Script completo de Video Sales Letter',
-  },
-  {
-    id: 'email', label: 'E-mail', icon: Mail,
-    desc: 'E-mails de marketing e automação',
+    id: 'email', label: 'E-mail', icon: Mail, desc: 'E-mails de marketing e automação',
     subtypes: [
       { id: 'cold',         label: 'E-mail Frio' },
       { id: 'nurture',      label: 'Nutrição' },
@@ -63,8 +73,7 @@ const COPY_TYPES: {
     ],
   },
   {
-    id: 'ad', label: 'Anúncio', icon: Megaphone,
-    desc: 'Copy para tráfego pago',
+    id: 'ad', label: 'Anúncio', icon: Megaphone, desc: 'Copy para tráfego pago',
     subtypes: [
       { id: 'facebook',          label: 'Facebook Feed' },
       { id: 'instagram',         label: 'Instagram Feed/Stories' },
@@ -72,56 +81,265 @@ const COPY_TYPES: {
       { id: 'youtube-bumper',    label: 'YouTube (Bumper 6s)' },
     ],
   },
-  {
-    id: 'salespage', label: 'Página de Vendas', icon: ShoppingCart,
-    desc: 'Copy completo de landing page',
-  },
-  {
-    id: 'capturepage', label: 'Página de Captura', icon: MousePointerClick,
-    desc: 'Opt-in page de alta conversão',
-  },
+  { id: 'salespage',    label: 'Página de Vendas',  icon: ShoppingCart,    desc: 'Copy completo de landing page' },
+  { id: 'capturepage',  label: 'Página de Captura', icon: MousePointerClick, desc: 'Opt-in page de alta conversão' },
 ]
 
-// ── Persona form blank state ──────────────────────────────────────────────────
+// ── Blank persona form ────────────────────────────────────────────────────────
 const BLANK_PERSONA: Omit<PersonaFull, 'id' | 'createdAt' | '_count'> = {
-  name:             '',
-  expertName:       '',
-  niche:            '',
-  targetAvatar:     '',
-  corePromise:      '',
-  toneOfVoice:      '',
-  writingStyle:     '',
-  painPoints:       '',
-  objections:       '',
-  uniqueMechanism:  '',
-  socialProof:      '',
-  vocabulary:       '',
-  avoidVocabulary:  '',
-  copyReferences:   '',
-  products:         '',
-  pricePositioning: '',
-  ctaStyle:         '',
-  brandValues:      '',
-  competitors:      '',
+  name: '', expertName: '', niche: '', targetAvatar: '', corePromise: '',
+  toneOfVoice: '', writingStyle: '', painPoints: '', objections: '',
+  uniqueMechanism: '', socialProof: '', vocabulary: '', avoidVocabulary: '',
+  copyReferences: '', products: '', pricePositioning: '', ctaStyle: '',
+  brandValues: '', competitors: '',
 }
 
-// ── CopyBtn ───────────────────────────────────────────────────────────────────
+// ── Small reusable components ─────────────────────────────────────────────────
 function CopyBtn({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
-  const handle = () => {
-    navigator.clipboard.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
+  const handle = () => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500) }
   return (
-    <button onClick={handle}
-      className="p-1.5 rounded text-gray-500 hover:text-gray-300 hover:bg-surface-700 transition-colors flex-shrink-0">
+    <button onClick={handle} className="p-1.5 rounded text-gray-500 hover:text-gray-300 hover:bg-surface-700 transition-colors flex-shrink-0">
       {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
     </button>
   )
 }
 
-// ── ResultSection ─────────────────────────────────────────────────────────────
+function AnguloTooltip({ angulo }: { angulo: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative flex-shrink-0">
+      <button
+        onClick={() => setOpen(!open)}
+        className="p-1.5 rounded text-indigo-500/60 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors">
+        <Info className="w-3.5 h-3.5" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-7 z-20 w-72 bg-surface-750 border border-indigo-500/30 rounded-xl p-3 shadow-2xl">
+            <div className="flex items-start gap-2">
+              <Zap className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-indigo-200/90 leading-relaxed">{angulo}</p>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Ad variation card with comment/refine ─────────────────────────────────────
+function AdVariationCard({
+  index, variation, itemType, personaId, subtype, onRefined,
+}: {
+  index:       number
+  variation:   AdVariation
+  itemType:    'headline' | 'texto' | 'titulo' | 'descricao' | 'cta'
+  personaId:   string
+  subtype:     string
+  onRefined:   (v: AdVariation) => void
+}) {
+  const [showComment, setShowComment] = useState(false)
+  const [comment,     setComment]     = useState('')
+  const [refining,    setRefining]    = useState(false)
+
+  const isLong = itemType === 'texto'
+
+  const refine = async () => {
+    if (!comment.trim()) return toast.error('Escreva um comentário para refinar.')
+    setRefining(true)
+    try {
+      const res  = await fetch('/api/copy/refine', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          personaId,
+          subtype,
+          itemType,
+          originalText:   variation.texto,
+          originalAngulo: variation.angulo,
+          comment,
+        }),
+      })
+      const json = await res.json()
+      if (!json.success) throw new Error(json.error)
+      onRefined(json.data)
+      setComment('')
+      setShowComment(false)
+      toast.success('Variação refinada!')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao refinar')
+    } finally {
+      setRefining(false)
+    }
+  }
+
+  return (
+    <div className="bg-surface-750 border border-surface-600 rounded-xl overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-surface-600/60">
+        <span className="text-xs font-bold text-indigo-400 font-mono w-5 flex-shrink-0">{index + 1}</span>
+        <AnguloTooltip angulo={variation.angulo} />
+        <div className="flex-1" />
+        <CopyBtn text={variation.texto} />
+        <button
+          onClick={() => setShowComment(!showComment)}
+          className={`p-1.5 rounded transition-colors flex-shrink-0 ${
+            showComment
+              ? 'text-amber-400 bg-amber-500/10'
+              : 'text-gray-500 hover:text-amber-400 hover:bg-amber-500/10'
+          }`}>
+          <MessageSquare className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="px-3 py-3">
+        {isLong ? (
+          <div className="space-y-1.5">
+            {variation.texto.split(/\n+/).filter(Boolean).map((line, i) => (
+              <p key={i} className="text-sm text-gray-200 leading-relaxed">{line}</p>
+            ))}
+          </div>
+        ) : (
+          <p className={`leading-snug ${
+            itemType === 'headline' ? 'text-base font-semibold text-gray-100' : 'text-sm text-gray-200'
+          }`}>{variation.texto}</p>
+        )}
+      </div>
+
+      {/* Comment box */}
+      {showComment && (
+        <div className="px-3 pb-3 pt-1 border-t border-amber-500/20 bg-amber-500/5 space-y-2">
+          <p className="text-[11px] text-amber-400/80 font-medium">Instrução para a IA refinar esta variação</p>
+          <textarea
+            value={comment}
+            onChange={e => setComment(e.target.value)}
+            placeholder="Ex: Deixa mais urgente, muda o ângulo para storytelling, aumenta o tamanho, usa mais emojis..."
+            rows={2}
+            className="w-full rounded-lg bg-surface-800 border border-amber-500/30 text-gray-100
+              placeholder-gray-600 px-3 py-2 text-xs focus:outline-none focus:ring-2
+              focus:ring-amber-500/40 resize-none leading-relaxed"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setShowComment(false); setComment('') }}
+              className="text-xs text-gray-500 hover:text-gray-300 transition-colors">
+              Cancelar
+            </button>
+            <button
+              onClick={refine}
+              disabled={refining || !comment.trim()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600/20
+                border border-amber-500/40 text-xs font-medium text-amber-300
+                hover:bg-amber-600/30 transition-colors disabled:opacity-50 ml-auto">
+              {refining
+                ? <><Loader2 className="w-3 h-3 animate-spin" /> Refinando...</>
+                : <><RefreshCw className="w-3 h-3" /> Refinar com IA</>}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Ad section: 5 variations for one element ──────────────────────────────────
+function AdSection({
+  title, items, itemType, personaId, subtype, onUpdate,
+}: {
+  title:     string
+  items:     AdVariation[]
+  itemType:  'headline' | 'texto' | 'titulo' | 'descricao' | 'cta'
+  personaId: string
+  subtype:   string
+  onUpdate:  (index: number, v: AdVariation) => void
+}) {
+  const [open, setOpen] = useState(true)
+  const copyAll = () => {
+    navigator.clipboard.writeText(items.map((v, i) => `${i + 1}. ${v.texto}`).join('\n\n'))
+    toast.success('Todas as variações copiadas!')
+  }
+
+  return (
+    <div className="bg-surface-800 border border-surface-700 rounded-2xl overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4">
+        <button onClick={() => setOpen(!open)}
+          className="flex items-center gap-2 flex-1 text-left hover:opacity-80 transition-opacity">
+          <span className="text-sm font-semibold text-gray-200">{title}</span>
+          <span className="text-xs text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-2 py-0.5">
+            {items.length} variações
+          </span>
+          {open
+            ? <ChevronDown className="w-4 h-4 text-gray-500 ml-auto" />
+            : <ChevronUp   className="w-4 h-4 text-gray-500 ml-auto" />}
+        </button>
+        <button onClick={copyAll} className="p-1.5 rounded text-gray-500 hover:text-gray-300 hover:bg-surface-700 transition-colors ml-2 flex-shrink-0">
+          <Copy className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {open && (
+        <div className="px-5 pb-5 space-y-3">
+          {items.map((v, i) => (
+            <AdVariationCard
+              key={i}
+              index={i}
+              variation={v}
+              itemType={itemType}
+              personaId={personaId}
+              subtype={subtype}
+              onRefined={refined => onUpdate(i, refined)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Ad result panel ───────────────────────────────────────────────────────────
+function AdResultPanel({
+  data, personaId, subtype, onUpdate,
+}: {
+  data:      AdResult
+  personaId: string
+  subtype:   string
+  onUpdate:  (section: keyof AdResult, index: number, v: AdVariation) => void
+}) {
+  return (
+    <div className="space-y-4">
+      {data.headlines  && (
+        <AdSection title="Headlines" items={data.headlines} itemType="headline"
+          personaId={personaId} subtype={subtype}
+          onUpdate={(i, v) => onUpdate('headlines', i, v)} />
+      )}
+      {data.textos && (
+        <AdSection title="Textos Principais" items={data.textos} itemType="texto"
+          personaId={personaId} subtype={subtype}
+          onUpdate={(i, v) => onUpdate('textos', i, v)} />
+      )}
+      {data.titulos && (
+        <AdSection title="Títulos (máx 30 chars)" items={data.titulos} itemType="titulo"
+          personaId={personaId} subtype={subtype}
+          onUpdate={(i, v) => onUpdate('titulos', i, v)} />
+      )}
+      {data.descricoes && (
+        <AdSection title="Descrições (máx 30 chars)" items={data.descricoes} itemType="descricao"
+          personaId={personaId} subtype={subtype}
+          onUpdate={(i, v) => onUpdate('descricoes', i, v)} />
+      )}
+      {data.ctas && (
+        <AdSection title="CTAs" items={data.ctas} itemType="cta"
+          personaId={personaId} subtype={subtype}
+          onUpdate={(i, v) => onUpdate('ctas', i, v)} />
+      )}
+    </div>
+  )
+}
+
+// ── Generic result section (for non-ad types) ─────────────────────────────────
 function ResultSection({ title, content, list }: { title: string; content?: string; list?: string[] }) {
   const [open, setOpen] = useState(true)
   const copyText = list ? list.join('\n') : (content ?? '')
@@ -157,61 +375,6 @@ function ResultSection({ title, content, list }: { title: string; content?: stri
   )
 }
 
-// ── FormField ─────────────────────────────────────────────────────────────────
-function FormField({
-  label, hint, value, onChange, rows = 3, required = false, placeholder = '',
-}: {
-  label: string; hint?: string; value: string; onChange: (v: string) => void
-  rows?: number; required?: boolean; placeholder?: string
-}) {
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-baseline gap-1.5">
-        <label className="text-xs font-semibold text-gray-300">
-          {label}{required && <span className="text-red-400 ml-0.5">*</span>}
-        </label>
-        {hint && <span className="text-[11px] text-gray-600">{hint}</span>}
-      </div>
-      <textarea
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        rows={rows}
-        placeholder={placeholder}
-        className="w-full rounded-lg bg-surface-750 border border-surface-600 text-gray-100
-          placeholder-gray-600 px-3 py-2.5 text-sm focus:outline-none focus:ring-2
-          focus:ring-indigo-500 resize-none leading-relaxed"
-      />
-    </div>
-  )
-}
-
-function FormInput({
-  label, hint, value, onChange, required = false, placeholder = '',
-}: {
-  label: string; hint?: string; value: string; onChange: (v: string) => void
-  required?: boolean; placeholder?: string
-}) {
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-baseline gap-1.5">
-        <label className="text-xs font-semibold text-gray-300">
-          {label}{required && <span className="text-red-400 ml-0.5">*</span>}
-        </label>
-        {hint && <span className="text-[11px] text-gray-600">{hint}</span>}
-      </div>
-      <input
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-lg bg-surface-750 border border-surface-600 text-gray-100
-          placeholder-gray-600 px-3 py-2 text-sm focus:outline-none focus:ring-2
-          focus:ring-indigo-500"
-      />
-    </div>
-  )
-}
-
-// ── Render result by copy type ────────────────────────────────────────────────
 function RenderResult({ type, data }: { type: CopyType; data: Record<string, unknown> }) {
   const sections: { title: string; key: string; list?: boolean }[] = {
     vsl: [
@@ -232,33 +395,28 @@ function RenderResult({ type, data }: { type: CopyType; data: Record<string, unk
       { title: 'Corpo do e-mail',     key: 'corpo' },
       { title: 'CTA',                 key: 'cta' },
     ],
-    ad: [
-      { title: 'Headlines (3 ângulos)', key: 'headlines', list: true },
-      { title: 'Textos primários',       key: 'textos',    list: true },
-      { title: 'CTA do botão',           key: 'cta_botao' },
-      { title: 'Hook para vídeo',        key: 'hook_video' },
-    ],
+    ad: [],
     salespage: [
-      { title: 'Headline principal',     key: 'hero_headline' },
-      { title: 'Subheadline',            key: 'hero_subheadline' },
-      { title: 'Problema',               key: 'problema' },
-      { title: 'Agitação',               key: 'agitacao' },
-      { title: 'Mecanismo único',        key: 'mecanismo' },
-      { title: 'Para quem é',            key: 'para_quem' },
-      { title: 'O que você vai ter',     key: 'o_que_voce_vai_ter' },
-      { title: 'Prova social',           key: 'prova_social' },
-      { title: 'Oferta',                 key: 'oferta' },
-      { title: 'Bônus',                  key: 'bonus' },
-      { title: 'Garantia',               key: 'garantia' },
-      { title: 'FAQ',                    key: 'faq' },
-      { title: 'CTA principal',          key: 'cta_principal' },
+      { title: 'Headline principal',    key: 'hero_headline' },
+      { title: 'Subheadline',           key: 'hero_subheadline' },
+      { title: 'Problema',              key: 'problema' },
+      { title: 'Agitação',              key: 'agitacao' },
+      { title: 'Mecanismo único',       key: 'mecanismo' },
+      { title: 'Para quem é',           key: 'para_quem' },
+      { title: 'O que você vai ter',    key: 'o_que_voce_vai_ter' },
+      { title: 'Prova social',          key: 'prova_social' },
+      { title: 'Oferta',                key: 'oferta' },
+      { title: 'Bônus',                 key: 'bonus' },
+      { title: 'Garantia',              key: 'garantia' },
+      { title: 'FAQ',                   key: 'faq' },
+      { title: 'CTA principal',         key: 'cta_principal' },
     ],
     capturepage: [
-      { title: 'Headline',       key: 'headline' },
-      { title: 'Subheadline',    key: 'subheadline' },
-      { title: 'Bullets',        key: 'bullets', list: true },
-      { title: 'CTA do botão',   key: 'cta_botao' },
-      { title: 'Credibilidade',  key: 'credibilidade' },
+      { title: 'Headline',      key: 'headline' },
+      { title: 'Subheadline',   key: 'subheadline' },
+      { title: 'Bullets',       key: 'bullets', list: true },
+      { title: 'CTA do botão',  key: 'cta_botao' },
+      { title: 'Credibilidade', key: 'credibilidade' },
     ],
   }[type] ?? []
 
@@ -275,6 +433,46 @@ function RenderResult({ type, data }: { type: CopyType; data: Record<string, unk
   )
 }
 
+// ── Form helpers ──────────────────────────────────────────────────────────────
+function FormField({ label, hint, value, onChange, rows = 3, required = false, placeholder = '' }: {
+  label: string; hint?: string; value: string; onChange: (v: string) => void
+  rows?: number; required?: boolean; placeholder?: string
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline gap-1.5">
+        <label className="text-xs font-semibold text-gray-300">
+          {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+        </label>
+        {hint && <span className="text-[11px] text-gray-600">{hint}</span>}
+      </div>
+      <textarea value={value} onChange={e => onChange(e.target.value)} rows={rows} placeholder={placeholder}
+        className="w-full rounded-lg bg-surface-750 border border-surface-600 text-gray-100
+          placeholder-gray-600 px-3 py-2.5 text-sm focus:outline-none focus:ring-2
+          focus:ring-indigo-500 resize-none leading-relaxed" />
+    </div>
+  )
+}
+
+function FormInput({ label, hint, value, onChange, required = false, placeholder = '' }: {
+  label: string; hint?: string; value: string; onChange: (v: string) => void
+  required?: boolean; placeholder?: string
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline gap-1.5">
+        <label className="text-xs font-semibold text-gray-300">
+          {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+        </label>
+        {hint && <span className="text-[11px] text-gray-600">{hint}</span>}
+      </div>
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        className="w-full rounded-lg bg-surface-750 border border-surface-600 text-gray-100
+          placeholder-gray-600 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+    </div>
+  )
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // ── Main Page ─────────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
@@ -286,14 +484,15 @@ export default function CopyAgentPage() {
   const [subtype,         setSubtype]         = useState('')
   const [brief,           setBrief]           = useState('')
   const [generating,      setGenerating]      = useState(false)
+  const [exporting,       setExporting]       = useState(false)
   const [result,          setResult]          = useState<Record<string, unknown> | null>(null)
   const [loadingPersonas, setLoadingPersonas] = useState(true)
 
   // Persona form state
-  const [editingPersona,  setEditingPersona]  = useState<PersonaFull | null>(null)
-  const [formData,        setFormData]        = useState({ ...BLANK_PERSONA })
-  const [savingPersona,   setSavingPersona]   = useState(false)
-  const [deletingId,      setDeletingId]      = useState<string | null>(null)
+  const [editingPersona, setEditingPersona] = useState<PersonaFull | null>(null)
+  const [formData,       setFormData]       = useState({ ...BLANK_PERSONA })
+  const [savingPersona,  setSavingPersona]  = useState(false)
+  const [deletingId,     setDeletingId]     = useState<string | null>(null)
 
   // ── Load personas ─────────────────────────────────────────────────────────
   const loadPersonas = useCallback(async () => {
@@ -303,16 +502,15 @@ export default function CopyAgentPage() {
       const json = await res.json()
       if (json.success) setPersonas(json.data)
     } catch { toast.error('Erro ao carregar personas') }
-    finally  { setLoadingPersonas(false) }
+    finally   { setLoadingPersonas(false) }
   }, [])
 
   useEffect(() => { loadPersonas() }, [loadPersonas])
 
-  // ── Generate copy ─────────────────────────────────────────────────────────
+  // ── Generate ──────────────────────────────────────────────────────────────
   const generate = async () => {
     if (!selectedPersona) return toast.error('Selecione uma persona.')
     if (!copyType)        return toast.error('Selecione o tipo de copy.')
-
     const typeConfig = COPY_TYPES.find(t => t.id === copyType)
     if (typeConfig?.subtypes && !subtype) return toast.error('Selecione o subtipo.')
 
@@ -327,12 +525,59 @@ export default function CopyAgentPage() {
       const json = await res.json()
       if (!json.success) throw new Error(json.error)
       setResult(json.data)
-      toast.success('Copy gerado!')
+      toast.success('Copy gerado! 🔥')
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro na geração')
     } finally {
       setGenerating(false)
+    }
+  }
+
+  // ── Update single ad variation after refine ───────────────────────────────
+  const updateAdVariation = (
+    section: keyof AdResult,
+    index:   number,
+    refined: AdVariation,
+  ) => {
+    setResult(prev => {
+      if (!prev) return prev
+      const adData = prev as AdResult
+      const updated = [...(adData[section] ?? [])]
+      updated[index] = refined
+      return { ...prev, [section]: updated }
+    })
+  }
+
+  // ── Export DOCX ───────────────────────────────────────────────────────────
+  const exportDocx = async () => {
+    if (!result || !selectedPersona || !copyType) return
+    setExporting(true)
+    try {
+      const res = await fetch('/api/copy/export', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          personaName: selectedPersona.name,
+          expertName:  selectedPersona.expertName,
+          copyType,
+          subtype,
+          brief,
+          result,
+        }),
+      })
+      if (!res.ok) throw new Error('Erro ao gerar DOCX')
+      const blob = await res.blob()
+      const a    = document.createElement('a')
+      a.href     = URL.createObjectURL(blob)
+      a.download = `copy-${selectedPersona.expertName.toLowerCase().replace(/\s+/g, '-')}-${copyType}.docx`
+      a.click()
+      URL.revokeObjectURL(a.href)
+      toast.success('DOCX exportado!')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao exportar')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -343,9 +588,7 @@ export default function CopyAgentPage() {
       const url    = editingPersona ? `/api/copy/personas/${editingPersona.id}` : '/api/copy/personas'
       const method = editingPersona ? 'PUT' : 'POST'
       const res    = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(formData),
+        method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData),
       })
       const json = await res.json()
       if (!json.success) throw new Error(json.error)
@@ -371,12 +614,7 @@ export default function CopyAgentPage() {
     finally  { setDeletingId(null) }
   }
 
-  const openNewPersona = () => {
-    setEditingPersona(null)
-    setFormData({ ...BLANK_PERSONA })
-    setView('persona-form')
-  }
-
+  const openNewPersona  = () => { setEditingPersona(null); setFormData({ ...BLANK_PERSONA }); setView('persona-form') }
   const openEditPersona = async (p: PersonaSummary) => {
     try {
       const res  = await fetch(`/api/copy/personas/${p.id}`)
@@ -389,8 +627,7 @@ export default function CopyAgentPage() {
   }
 
   const field = (key: keyof typeof formData) => ({
-    value:    formData[key],
-    onChange: (v: string) => setFormData(prev => ({ ...prev, [key]: v })),
+    value: formData[key], onChange: (v: string) => setFormData(prev => ({ ...prev, [key]: v })),
   })
 
   const resetGenerate = () => { setResult(null); setBrief(''); setSubtype('') }
@@ -413,46 +650,40 @@ export default function CopyAgentPage() {
         </div>
       </div>
 
-      {/* ── Seção 1: Identidade ── */}
       <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5 space-y-4">
         <h2 className="text-sm font-bold text-indigo-300 uppercase tracking-wide flex items-center gap-2">
           <User className="w-3.5 h-3.5" /> Identidade do Expert
         </h2>
         <div className="grid grid-cols-2 gap-4">
-          <FormInput label="Nome desta persona"   required placeholder="Ex: João - Marketing Digital" {...field('name')} />
-          <FormInput label="Nome completo do expert" required placeholder="Ex: João Silva"              {...field('expertName')} />
+          <FormInput label="Nome desta persona" required placeholder="Ex: João - Marketing Digital" {...field('name')} />
+          <FormInput label="Nome completo do expert" required placeholder="Ex: João Silva" {...field('expertName')} />
         </div>
         <FormInput label="Nicho de mercado" required placeholder="Ex: Marketing Digital para donos de negócio local" {...field('niche')} />
-        <FormField label="Produtos e ofertas"
-          hint="nome + preço + o que inclui"
+        <FormField label="Produtos e ofertas" hint="nome + preço + o que inclui"
           placeholder="Ex: Método VSL Magnética — R$997 (curso online + comunidade + mentoria em grupo)"
           rows={2} {...field('products')} />
       </div>
 
-      {/* ── Seção 2: Audiência e Transformação ── */}
       <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5 space-y-4">
         <h2 className="text-sm font-bold text-indigo-300 uppercase tracking-wide flex items-center gap-2">
           <BookOpen className="w-3.5 h-3.5" /> Audiência e Transformação
         </h2>
         <FormField label="Avatar ideal" required
           hint="quem é, quantos anos tem, qual a dor central, o que já tentou, o que sonha"
-          placeholder="Ex: Homens de 28-45 anos, donos de negócio que faturam entre R$10k-R$50k/mês. Tentaram de tudo mas não conseguem escalar porque não sabem criar VSLs que vendem..."
+          placeholder="Ex: Homens de 28-45 anos, donos de negócio que faturam entre R$10k-R$50k/mês..."
           rows={4} {...field('targetAvatar')} />
-        <FormField label="Promessa central / transformação" required
-          hint="o resultado tangível que o expert entrega"
+        <FormField label="Promessa central / transformação" required hint="resultado tangível"
           placeholder="Ex: Criar uma VSL em 48h que converte acima de 3% sem precisar aparecer na câmera"
           rows={2} {...field('corePromise')} />
-        <FormField label="Dores principais da audiência" required
-          hint="liste as 3-5 maiores dores"
-          placeholder="1. Gasta fortunas em tráfego mas a VSL não converte&#10;2. Trava na câmera ou não sabe escrever copy&#10;3. Já tentou cursos genéricos que não servem pro seu nicho"
+        <FormField label="Dores principais da audiência" required hint="liste as 3-5 maiores dores"
+          placeholder="1. Gasta em tráfego mas a VSL não converte&#10;2. Trava na câmera ou não sabe escrever copy&#10;3. Já tentou cursos genéricos"
           rows={4} {...field('painPoints')} />
         <FormField label="Objeções e como o expert responde" required
-          hint="as principais objeções + a resposta do expert a cada uma"
-          placeholder="'Não tenho tempo' → O método leva 48h, não 6 meses. Você vai fazer enquanto eu mostro.&#10;'Já tentei e não funcionou' → Você tentou com método genérico. Esse é feito pro seu nicho..."
+          hint="objeções + resposta do expert"
+          placeholder="'Não tenho tempo' → O método leva 48h, não 6 meses.&#10;'Já tentei e não funcionou' → Você tentou com método genérico..."
           rows={4} {...field('objections')} />
       </div>
 
-      {/* ── Seção 3: Tom e Estilo ── */}
       <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5 space-y-4">
         <h2 className="text-sm font-bold text-indigo-300 uppercase tracking-wide flex items-center gap-2">
           <PenLine className="w-3.5 h-3.5" /> Tom e Estilo de Escrita
@@ -466,59 +697,53 @@ export default function CopyAgentPage() {
             {...field('writingStyle')} />
         </div>
         <FormField label="Vocabulário característico (USE SEMPRE)" required
-          hint="expressões, gírias, palavras que são a marca registrada do expert"
-          placeholder="Ex: 'olha só', 'deixa eu te mostrar uma coisa', 'VSL magnética', 'método de 48h', 'sem aparecer', 'isso é o que separa quem vende de quem fica esperando'"
+          hint="expressões, gírias, palavras marca registrada do expert"
+          placeholder="Ex: 'olha só', 'deixa eu te mostrar', 'VSL magnética', 'método de 48h', 'sem aparecer'"
           rows={3} {...field('vocabulary')} />
         <FormField label="Vocabulário a EVITAR"
-          hint="palavras, clichês ou expressões que o expert nunca usaria"
-          placeholder="Ex: 'você merece', 'segredo revelado', 'fórmula mágica', 'renda extra' — expert não usa linguagem de pirâmide financeira"
+          hint="clichês ou expressões que o expert nunca usaria"
+          placeholder="Ex: 'você merece', 'segredo revelado', 'fórmula mágica'"
           rows={2} {...field('avoidVocabulary')} />
-        <FormField label="Estilo de CTA"
-          hint="como o expert fecha e convida à ação"
+        <FormField label="Estilo de CTA" hint="como o expert fecha e convida à ação"
           placeholder="Ex: Usa CTA direto e imperativo. 'Clica no botão agora.' Nunca pede, ordena com contexto de valor."
           rows={2} {...field('ctaStyle')} />
       </div>
 
-      {/* ── Seção 4: Mecanismo e Diferenciação ── */}
       <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5 space-y-4">
         <h2 className="text-sm font-bold text-indigo-300 uppercase tracking-wide flex items-center gap-2">
           <Sparkles className="w-3.5 h-3.5" /> Mecanismo Único e Diferenciação
         </h2>
-        <FormField label="Mecanismo único / método proprietário" required
-          hint="o nome e a lógica do método exclusivo do expert"
-          placeholder="Ex: Método VSL Magnética — 4 blocos de copy (Gancho, Dor, Mecanismo, Oferta) montados em sequência com IA treinada no nicho. Diferente de qualquer curso genérico porque..."
+        <FormField label="Mecanismo único / método proprietário" required hint="nome + lógica do método"
+          placeholder="Ex: Método VSL Magnética — 4 blocos de copy (Gancho, Dor, Mecanismo, Oferta) montados em sequência com IA..."
           rows={4} {...field('uniqueMechanism')} />
         <FormField label="Valores e posicionamento de marca"
           placeholder="Ex: Anti-guru. Mostra os bastidores. Não vende sonho, vende método. Transparente com números reais."
           rows={2} {...field('brandValues')} />
-        <FormField label="Diferenciação dos concorrentes"
-          hint="quem são e por que o expert é diferente"
-          placeholder="Ex: Diferente do concorrente X que vende template genérico, aqui o método é calibrado por nicho. Diferente de Y que some após a venda, aqui tem acompanhamento..."
+        <FormField label="Diferenciação dos concorrentes" hint="quem são e por que o expert é diferente"
+          placeholder="Ex: Diferente do concorrente X que vende template genérico, aqui o método é calibrado por nicho..."
           rows={3} {...field('competitors')} />
         <FormField label="Posicionamento de preço / ancoragem"
-          placeholder="Ex: Sempre ancora em R$5.000 de consultoria individual antes de revelar o preço do curso. Usa 'menos que um jantar por semana' como comparação."
+          placeholder="Ex: Ancora em R$5.000 de consultoria antes de revelar o preço. Usa 'menos que um jantar por semana'."
           rows={2} {...field('pricePositioning')} />
       </div>
 
-      {/* ── Seção 5: Prova Social e Referências ── */}
       <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5 space-y-4">
         <h2 className="text-sm font-bold text-indigo-300 uppercase tracking-wide flex items-center gap-2">
           <Check className="w-3.5 h-3.5 text-emerald-400" /> Prova Social e Referências de Copy
         </h2>
         <FormField label="Prova social (resultados, números, depoimentos)" required
-          hint="resultados reais, nomes de alunos, métricas, conquistas do expert"
-          placeholder="Ex: +340 alunos. Média de 2,8% de conversão nas VSLs. Aluno Carlos saiu de R$0 para R$47k em 90 dias. Expert apareceu no Fantástico. ROAS médio dos alunos: 4.2x."
+          hint="resultados reais, nomes, métricas, conquistas"
+          placeholder="Ex: +340 alunos. Média de 2,8% de conversão. Aluno Carlos saiu de R$0 para R$47k em 90 dias..."
           rows={4} {...field('socialProof')} />
         <FormField label="Referências de copy existentes"
-          hint="cole trechos de copies, scripts ou posts do expert para calibrar o estilo"
-          placeholder="Cole aqui trechos de copies já escritos pelo expert, scripts de vídeo, posts de redes sociais ou qualquer texto que represente o tom e estilo dele..."
+          hint="cole trechos de copies, scripts ou posts do expert"
+          placeholder="Cole aqui trechos de copies já escritos, scripts de vídeo, posts de redes sociais..."
           rows={6} {...field('copyReferences')} />
       </div>
 
       <div className="flex gap-3 pt-2">
         <button onClick={() => setView('personas')}
-          className="flex-1 py-3 rounded-xl border border-surface-600 text-sm text-gray-400
-            hover:text-gray-200 hover:border-surface-500 transition-colors">
+          className="flex-1 py-3 rounded-xl border border-surface-600 text-sm text-gray-400 hover:text-gray-200 hover:border-surface-500 transition-colors">
           Cancelar
         </button>
         <Button onClick={savePersona} loading={savingPersona} size="lg" className="flex-2 flex-1">
@@ -546,8 +771,7 @@ export default function CopyAgentPage() {
           </div>
         </div>
         <button onClick={openNewPersona}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500
-            text-sm font-semibold text-white transition-colors">
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold text-white transition-colors">
           <Plus className="w-4 h-4" /> Nova persona
         </button>
       </div>
@@ -562,16 +786,14 @@ export default function CopyAgentPage() {
             <User className="w-5 h-5 text-gray-500" />
           </div>
           <p className="text-sm text-gray-400">Nenhuma persona criada ainda.</p>
-          <button onClick={openNewPersona}
-            className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
+          <button onClick={openNewPersona} className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
             Criar a primeira persona →
           </button>
         </div>
       ) : (
         <div className="space-y-3">
           {personas.map(p => (
-            <div key={p.id}
-              className="bg-surface-800 border border-surface-700 rounded-2xl p-5 flex items-start justify-between gap-4">
+            <div key={p.id} className="bg-surface-800 border border-surface-700 rounded-2xl p-5 flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <p className="text-sm font-semibold text-gray-100">{p.name}</p>
@@ -589,9 +811,7 @@ export default function CopyAgentPage() {
                 </button>
                 <button onClick={() => deletePersona(p.id)} disabled={deletingId === p.id}
                   className="p-2 rounded-lg text-gray-600 hover:text-red-400 hover:bg-surface-700 transition-colors disabled:opacity-40">
-                  {deletingId === p.id
-                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    : <Trash2  className="w-3.5 h-3.5" />}
+                  {deletingId === p.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
@@ -618,17 +838,17 @@ export default function CopyAgentPage() {
           </div>
         </div>
         <button onClick={() => setView('personas')}
-          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200
-            transition-colors px-3 py-1.5 rounded-lg hover:bg-surface-800">
+          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors px-3 py-1.5 rounded-lg hover:bg-surface-800">
           <User className="w-3.5 h-3.5" /> Personas
         </button>
       </div>
 
-      {/* Result view */}
+      {/* ── Result view ── */}
       {result && copyType ? (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          {/* Result header */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {selectedType && <selectedType.icon className="w-4 h-4 text-indigo-400" />}
               <span className="text-sm font-semibold text-gray-200">
                 {selectedType?.label}{subtype ? ` · ${selectedType?.subtypes?.find(s => s.id === subtype)?.label}` : ''}
@@ -639,13 +859,43 @@ export default function CopyAgentPage() {
                 </span>
               )}
             </div>
-            <button onClick={resetGenerate}
-              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors">
-              <RotateCcw className="w-3.5 h-3.5" /> Gerar novamente
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={exportDocx} disabled={exporting}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-500/40
+                  bg-indigo-600/10 text-xs font-medium text-indigo-300 hover:bg-indigo-600/20
+                  hover:border-indigo-500/60 transition-colors disabled:opacity-50">
+                {exporting
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Gerando...</>
+                  : <><FileDown className="w-3.5 h-3.5" /> Exportar DOCX</>}
+              </button>
+              <button onClick={resetGenerate}
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors">
+                <RotateCcw className="w-3.5 h-3.5" /> Gerar novamente
+              </button>
+            </div>
           </div>
 
-          <RenderResult type={copyType} data={result} />
+          {/* Hint for ad type */}
+          {copyType === 'ad' && (
+            <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-indigo-500/5 border border-indigo-500/20">
+              <Info className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-indigo-300/80 leading-relaxed">
+                Cada variação tem 5 ângulos distintos. Clique no <span className="font-semibold">ℹ</span> para ver a estratégia por trás, no <span className="font-semibold">💬</span> para comentar e pedir refinamento.
+              </p>
+            </div>
+          )}
+
+          {/* Render result */}
+          {copyType === 'ad' && selectedPersona ? (
+            <AdResultPanel
+              data={result as AdResult}
+              personaId={selectedPersona.id}
+              subtype={subtype}
+              onUpdate={updateAdVariation}
+            />
+          ) : (
+            <RenderResult type={copyType} data={result} />
+          )}
         </div>
       ) : (
         <>
@@ -723,7 +973,6 @@ export default function CopyAgentPage() {
               ))}
             </div>
 
-            {/* Subtype */}
             {selectedType?.subtypes && (
               <div className="grid grid-cols-2 gap-2 pt-1">
                 {selectedType.subtypes.map(s => (
@@ -750,7 +999,7 @@ export default function CopyAgentPage() {
               value={brief}
               onChange={e => setBrief(e.target.value)}
               rows={4}
-              placeholder="Ex: E-mail de fechamento de carrinho para o Método VSL Magnética. Carrinho fecha hoje à meia-noite. Desconto de 20% com cupom ULTIMO20. Bônus surpresa: 1h de consultoria individual para as primeiras 10 vendas."
+              placeholder="Ex: Anúncio de Facebook para o Método VSL Magnética com foco na dor de quem gasta em tráfego mas não converte. Objetivo: clique no link. Produto: R$997."
               className="w-full rounded-lg bg-surface-750 border border-surface-600 text-gray-100
                 placeholder-gray-600 px-3 py-2.5 text-sm focus:outline-none focus:ring-2
                 focus:ring-indigo-500 resize-none leading-relaxed"
