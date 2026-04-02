@@ -888,7 +888,7 @@ export default function CopyAgentPage() {
           {/* Render result */}
           {copyType === 'ad' && selectedPersona ? (
             <AdResultPanel
-              data={result as AdResult}
+              data={result as unknown as AdResult}
               personaId={selectedPersona.id}
               subtype={subtype}
               onUpdate={updateAdVariation}
