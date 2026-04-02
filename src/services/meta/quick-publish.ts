@@ -1,20 +1,19 @@
 // ── Quick Publish ────────────────────────────────────────────────────────────
 // Simplified one-shot Meta API publisher.
-// Given a form payload + uploaded files, creates:
-//   1 Campaign → 1 Ad Set → N Ads (one per creative, all in same ad set)
 //
-// Each ad creative carries all body texts + titles + descriptions via
-// asset_feed_spec. Facebook treats these as "multiple text options"
-// (Advantage+ Creative) — testing combinations automatically.
-//
-// Structure:
+// Structure produced:
 //   Campaign
-//   └── Ad Set  (single, PAUSED)
-//       ├── Ad 1 → creative1 [texts 1-5, titles 1-5, descriptions 1-5]
-//       ├── Ad 2 → creative2 [texts 1-5, titles 1-5, descriptions 1-5]
-//       └── Ad N → creativeN [texts 1-5, titles 1-5, descriptions 1-5]
+//   └── Ad Set  (1 shared set, PAUSED)
+//       ├── Ad "v1-feed - Texto 1"  → creative (v1-feed + text1 + title1 + desc1)
+//       ├── Ad "v1-feed - Texto 2"  → creative (v1-feed + text2 + title2 + desc2)
+//       │   …
+//       ├── Ad "v2-feed - Texto 1"  → creative (v2-feed + text1 + title1 + desc1)
+//       └── …
 //
-// Everything created as PAUSED (ready to review + activate in Meta Ads Manager).
+// Media is uploaded once per file.
+// Each text variation becomes a separate ad (standard link_data / video_data).
+// NO asset_feed_spec / NO is_dynamic_creative — avoids Meta's 1-ad-per-adset limit.
+// Everything PAUSED — ready to review and activate in Meta Ads Manager.
 
 import { MetaApiClient, MetaError } from './client'
 import { prisma } from '@/services/db/client'
@@ -24,29 +23,29 @@ import path from 'path'
 export type CampaignType = 'CBO' | 'ABO'
 
 export interface UploadedFile {
-  storedName: string   // filename in public/uploads/ (local) or blob pathname (Vercel)
-  url?: string         // Vercel Blob public URL — used for fetching file on server
+  storedName: string
+  url?: string
   originalName: string
   mimeType: string
   type: 'IMAGE' | 'VIDEO'
-  group: string        // parsed group name, e.g. "ad01"
-  placement: string    // e.g. "feed", "stories"
+  group: string
+  placement: string
 }
 
 export interface PublishPayload {
   campaignName: string
   adSetName: string
   campaignType: CampaignType
-  objective: string       // e.g. OUTCOME_TRAFFIC
-  budget: number          // in BRL (e.g. 10.00) — stored as cents in Meta
+  objective: string
+  budget: number          // BRL — converted to cents for Meta
   pageId: string
-  pixelId?: string        // Facebook Pixel ID — required for OFFSITE_CONVERSIONS
-  bodyTexts: string[]     // up to 5, applied to every ad via asset_feed_spec
-  titles: string[]        // up to 5
-  descriptions: string[]  // up to 5
+  pixelId?: string
+  bodyTexts: string[]     // up to 5 — each becomes a separate ad per creative
+  titles: string[]        // up to 5 — matched by index to bodyTexts
+  descriptions: string[]  // up to 5 — matched by index to bodyTexts
   destinationUrl: string
   callToAction: string
-  geoLocations: string[]  // e.g. ["BR"]
+  geoLocations: string[]
   files: UploadedFile[]
 }
 
@@ -59,10 +58,10 @@ export interface PublishResult {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const MAX_IMAGE_BYTES = 30 * 1024 * 1024   // 30 MB — Meta hard limit
-const MAX_VIDEO_BYTES = 500 * 1024 * 1024  // 500 MB — practical limit to avoid timeouts
+const MAX_IMAGE_BYTES = 30 * 1024 * 1024
+const MAX_VIDEO_BYTES = 500 * 1024 * 1024
 
-// ── Retry wrapper (handles Meta rate limits: codes 17, 32, 613, 80004) ────────
+// ── Retry wrapper ─────────────────────────────────────────────────────────────
 async function withRetry<T>(fn: () => Promise<T>, attempts = 3, baseDelayMs = 1500): Promise<T> {
   let last: Error = new Error('Unknown error')
   for (let i = 1; i <= attempts; i++) {
@@ -75,7 +74,6 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 3, baseDelayMs = 15
         last.message.toLowerCase().includes('rate limit') ||
         last.message.toLowerCase().includes('throttl')
       if (!isRateLimit || i === attempts) throw last
-      // Exponential back-off: 1.5s, 3s, 6s …
       await new Promise(r => setTimeout(r, baseDelayMs * i))
     }
   }
@@ -90,29 +88,18 @@ async function log(
   await prisma.apiLog.create({
     data: {
       operation: op, method, endpoint,
-      requestBody: JSON.stringify(req ?? {}),
+      requestBody:  JSON.stringify(req ?? {}),
       responseBody: JSON.stringify(res ?? {}),
       statusCode: ok ? 200 : 400,
       success: ok, errorMessage: err, durationMs: ms,
     },
-  }).catch(() => { /* non-critical */ })
+  }).catch(() => {})
 }
 
-// ── Objective → optimization_goal mapping (Meta API v21) ─────────────────────
-//
-// Confirmed via real API testing on 2025-03-24:
-//
-//  OUTCOME_TRAFFIC     → LINK_CLICKS          (no pixel, no promoted_object)
-//  OUTCOME_SALES       → OFFSITE_CONVERSIONS  (pixel REQUIRED, promoted_object mandatory)
-//  OUTCOME_LEADS       → OFFSITE_CONVERSIONS  (pixel REQUIRED, promoted_object mandatory)
-//  OUTCOME_ENGAGEMENT  → POST_ENGAGEMENT      (no destination_type, no promoted_object)
-//  OUTCOME_AWARENESS   → REACH                (no destination_type, no promoted_object)
-//
-// LANDING_PAGE_VIEWS does NOT work for OUTCOME_SALES/LEADS in this account.
-// OFFSITE_CONVERSIONS requires pixel_id in promoted_object — no pixel = error.
-function getOptimization(objective: string): { optimization_goal: string; billing_event: string } {
+// ── Objective helpers ─────────────────────────────────────────────────────────
+function getOptimization(objective: string) {
   const map: Record<string, { optimization_goal: string; billing_event: string }> = {
-    OUTCOME_TRAFFIC:       { optimization_goal: 'LINK_CLICKS',        billing_event: 'IMPRESSIONS' },
+    OUTCOME_TRAFFIC:       { optimization_goal: 'LINK_CLICKS',         billing_event: 'IMPRESSIONS' },
     OUTCOME_SALES:         { optimization_goal: 'OFFSITE_CONVERSIONS', billing_event: 'IMPRESSIONS' },
     OUTCOME_LEADS:         { optimization_goal: 'OFFSITE_CONVERSIONS', billing_event: 'IMPRESSIONS' },
     OUTCOME_ENGAGEMENT:    { optimization_goal: 'POST_ENGAGEMENT',     billing_event: 'IMPRESSIONS' },
@@ -122,89 +109,63 @@ function getOptimization(objective: string): { optimization_goal: string; billin
   return map[objective] ?? { optimization_goal: 'LINK_CLICKS', billing_event: 'IMPRESSIONS' }
 }
 
-// Only website-oriented objectives accept destination_type: 'WEBSITE'
 function getDestinationType(objective: string): string | undefined {
   return ['OUTCOME_TRAFFIC', 'OUTCOME_SALES', 'OUTCOME_LEADS'].includes(objective)
     ? 'WEBSITE'
     : undefined
 }
 
-// Build promoted_object for ad set.
-// Confirmed required for OUTCOME_SALES and OUTCOME_LEADS (pixel mandatory).
-function getPromotedObject(
-  objective: string,
-  pixelId?: string,
-): Record<string, string> | undefined {
-  if (objective === 'OUTCOME_SALES' && pixelId) {
-    return { pixel_id: pixelId, custom_event_type: 'PURCHASE' }
-  }
-  if (objective === 'OUTCOME_LEADS' && pixelId) {
-    return { pixel_id: pixelId, custom_event_type: 'LEAD' }
-  }
+function getPromotedObject(objective: string, pixelId?: string) {
+  if (objective === 'OUTCOME_SALES' && pixelId) return { pixel_id: pixelId, custom_event_type: 'PURCHASE' }
+  if (objective === 'OUTCOME_LEADS'  && pixelId) return { pixel_id: pixelId, custom_event_type: 'LEAD' }
   return undefined
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── File helpers ──────────────────────────────────────────────────────────────
 function localFilePath(storedName: string) {
   return path.join(process.cwd(), 'public', 'uploads', storedName)
 }
 
-// Read file bytes — from Vercel Blob URL (production) or local disk (dev)
 async function readFileBytes(file: UploadedFile): Promise<Buffer> {
   if (file.url?.startsWith('http')) {
     const res = await fetch(file.url)
-    if (!res.ok) throw new Error(`Falha ao baixar arquivo da nuvem: ${res.status} ${res.statusText}`)
+    if (!res.ok) throw new Error(`Falha ao baixar arquivo: ${res.status} ${res.statusText}`)
     return Buffer.from(await res.arrayBuffer())
   }
   return fs.readFileSync(localFilePath(file.storedName))
 }
 
-// ── Validate file size before upload ─────────────────────────────────────────
 function validateFileSize(file: UploadedFile): void {
   if (file.url?.startsWith('http')) return
   const stats = fs.statSync(localFilePath(file.storedName))
   const limit = file.type === 'IMAGE' ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES
-  const limitMB = limit / 1024 / 1024
   if (stats.size > limit) {
     throw new Error(
-      `Arquivo "${file.originalName}" excede o limite de ${limitMB} MB ` +
-      `(${(stats.size / 1024 / 1024).toFixed(1)} MB). Reduza o tamanho antes de enviar.`,
+      `"${file.originalName}" excede ${(limit / 1024 / 1024).toFixed(0)} MB ` +
+      `(${(stats.size / 1024 / 1024).toFixed(1)} MB).`,
     )
   }
 }
 
-// ── Upload image to Meta ───────────────────────────────────────────────────────
-async function uploadImage(
-  client: MetaApiClient, accountId: string, file: UploadedFile,
-): Promise<string> {
+// ── Upload helpers ─────────────────────────────────────────────────────────────
+async function uploadImage(client: MetaApiClient, accountId: string, file: UploadedFile): Promise<string> {
   const buf = await readFileBytes(file)
-  const fd = new FormData()
+  const fd  = new FormData()
   fd.append(file.storedName, new Blob([new Uint8Array(buf)]), file.storedName)
-
   type ImgResp = { images: Record<string, { hash: string }> }
-  const res = await withRetry(() =>
-    client.postFormData<ImgResp>(`${accountId}/adimages`, fd),
-  )
+  const res = await withRetry(() => client.postFormData<ImgResp>(`${accountId}/adimages`, fd))
   const entries = Object.values(res.images)
-  if (!entries.length || !entries[0].hash) {
-    throw new Error('Upload de imagem não retornou hash válido')
-  }
+  if (!entries.length || !entries[0].hash) throw new Error('Upload de imagem não retornou hash')
   return entries[0].hash
 }
 
-// ── Upload video to Meta ───────────────────────────────────────────────────────
-async function uploadVideo(
-  client: MetaApiClient, accountId: string, file: UploadedFile, title: string,
-): Promise<string> {
+async function uploadVideo(client: MetaApiClient, accountId: string, file: UploadedFile, title: string): Promise<string> {
   const buf = await readFileBytes(file)
-  const fd = new FormData()
+  const fd  = new FormData()
   fd.append('source', new Blob([new Uint8Array(buf)]), file.storedName)
   fd.append('title', title)
-
   type VidResp = { video_id: string }
-  const res = await withRetry(() =>
-    client.postFormData<VidResp>(`${accountId}/advideos`, fd),
-  )
+  const res = await withRetry(() => client.postFormData<VidResp>(`${accountId}/advideos`, fd))
   return res.video_id
 }
 
@@ -213,27 +174,24 @@ export async function quickPublish(payload: PublishPayload): Promise<PublishResu
   const errors: string[] = []
   let adsCreated = 0
 
-  // Load Meta credentials
+  // ── Load credentials ───────────────────────────────────────────────────────
   const settings = await prisma.settings.findUnique({ where: { id: 'default' } })
-  if (!settings?.metaToken)    throw new Error('Token Meta não configurado')
-  if (!settings?.adAccountId)  throw new Error('Conta de anúncios não selecionada')
+  if (!settings?.metaToken)   throw new Error('Token Meta não configurado')
+  if (!settings?.adAccountId) throw new Error('Conta de anúncios não selecionada')
 
   const client    = new MetaApiClient(settings.metaToken)
   const accountId = settings.adAccountId.startsWith('act_')
     ? settings.adAccountId
     : `act_${settings.adAccountId}`
 
-  // Meta API requires budget in cents (1 BRL = 100 cents). Minimum: R$ 1,00.
   const budgetCents = Math.max(Math.round(payload.budget * 100), 100)
 
-  // Validate pixel requirement for SALES/LEADS
   if (
     (payload.objective === 'OUTCOME_SALES' || payload.objective === 'OUTCOME_LEADS') &&
     !payload.pixelId?.trim()
   ) {
     throw new Error(
-      `O objetivo "${payload.objective === 'OUTCOME_SALES' ? 'Vendas' : 'Leads'}" exige um Pixel ID. ` +
-      'Preencha o campo Pixel ID no formulário.',
+      `O objetivo "${payload.objective === 'OUTCOME_SALES' ? 'Vendas' : 'Leads'}" exige um Pixel ID.`,
     )
   }
 
@@ -241,18 +199,15 @@ export async function quickPublish(payload: PublishPayload): Promise<PublishResu
   const destinationType = getDestinationType(payload.objective)
   const promotedObject  = getPromotedObject(payload.objective, payload.pixelId)
 
-  // ── Prepare text variations (shared across ALL ads) ────────────────────────
-  // asset_feed_spec requires { text } objects — not raw strings.
-  // Filter empty strings, cap at 5 each (Meta limit).
-  const bodies       = payload.bodyTexts.filter(Boolean).slice(0, 5).map(t => ({ text: t }))
-  const titles       = payload.titles.filter(Boolean).slice(0, 5).map(t => ({ text: t }))
-  const descriptions = payload.descriptions.filter(Boolean).slice(0, 5).map(t => ({ text: t }))
+  // ── Normalise text arrays (filter empty, cap at 5) ─────────────────────────
+  const bodyTexts    = payload.bodyTexts.filter(Boolean).slice(0, 5)
+  const titles       = payload.titles.filter(Boolean).slice(0, 5)
+  const descriptions = payload.descriptions.filter(Boolean).slice(0, 5)
 
-  // Meta requires at least 1 body and 1 title
-  if (!bodies.length)  bodies.push({ text: payload.campaignName })
-  if (!titles.length)  titles.push({ text: payload.campaignName })
+  // At least 1 text required
+  if (!bodyTexts.length) bodyTexts.push(payload.campaignName)
 
-  // ── 1. Create Campaign ────────────────────────────────────────────────────
+  // ── 1. Create Campaign ─────────────────────────────────────────────────────
   const campaignPayload: Record<string, unknown> = {
     name: payload.campaignName,
     objective: payload.objective,
@@ -264,12 +219,10 @@ export async function quickPublish(payload: PublishPayload): Promise<PublishResu
     campaignPayload.bid_strategy = 'LOWEST_COST_WITHOUT_CAP'
   }
 
-  const t0 = Date.now()
   let metaCampaignId: string
   try {
-    const res = await withRetry(() =>
-      client.post<{ id: string }>(`${accountId}/campaigns`, campaignPayload),
-    )
+    const t0  = Date.now()
+    const res = await withRetry(() => client.post<{ id: string }>(`${accountId}/campaigns`, campaignPayload))
     metaCampaignId = res.id
     await log('CREATE_CAMPAIGN', 'POST', `${accountId}/campaigns`, campaignPayload, res, true, '', Date.now() - t0)
   } catch (e) {
@@ -278,15 +231,11 @@ export async function quickPublish(payload: PublishPayload): Promise<PublishResu
     throw new Error(`Erro na campanha: ${msg}`)
   }
 
-  // ── 2. Create single Ad Set (shared by all ads) ───────────────────────────
+  // ── 2. Create single Ad Set ────────────────────────────────────────────────
   //
-  // NOTE: We intentionally do NOT use is_dynamic_creative: true here.
-  // That flag limits an ad set to exactly 1 ad — which is what caused the
-  // old "1 ad set per creative" problem.
-  //
-  // Instead, each ad creative uses asset_feed_spec to carry all text
-  // variations. Facebook treats these as "multiple text options" via
-  // Advantage+ Creative — testing combinations without the 1-ad restriction.
+  // Standard ad set — NO is_dynamic_creative.
+  // is_dynamic_creative limits the set to exactly 1 ad, which prevents
+  // multiple creatives from sharing the same set. Standard sets have no such limit.
   const adSetPayload: Record<string, unknown> = {
     name: payload.adSetName,
     campaign_id: metaCampaignId,
@@ -294,9 +243,7 @@ export async function quickPublish(payload: PublishPayload): Promise<PublishResu
     optimization_goal,
     billing_event,
     targeting: {
-      geo_locations: {
-        countries: payload.geoLocations.length ? payload.geoLocations : ['BR'],
-      },
+      geo_locations: { countries: payload.geoLocations.length ? payload.geoLocations : ['BR'] },
       age_min: 18,
       age_max: 65,
       publisher_platforms: ['facebook', 'instagram'],
@@ -313,9 +260,7 @@ export async function quickPublish(payload: PublishPayload): Promise<PublishResu
 
   let metaAdSetId: string
   try {
-    const res = await withRetry(() =>
-      client.post<{ id: string }>(`${accountId}/adsets`, adSetPayload),
-    )
+    const res = await withRetry(() => client.post<{ id: string }>(`${accountId}/adsets`, adSetPayload))
     metaAdSetId = res.id
     await log('CREATE_ADSET', 'POST', `${accountId}/adsets`, adSetPayload, res, true)
   } catch (e) {
@@ -324,22 +269,23 @@ export async function quickPublish(payload: PublishPayload): Promise<PublishResu
     throw new Error(`Erro no conjunto: ${msg}`)
   }
 
-  // ── 3. Create one Ad per creative (all inside the same Ad Set) ─────────────
+  // ── 3. For each creative × each text → 1 ad ───────────────────────────────
   //
-  // For each file:
-  //   a) Upload image/video to Meta
-  //   b) Create ad creative with asset_feed_spec (all texts + titles + descriptions)
-  //   c) Create ad pointing to that creative in the single ad set
+  // Media is uploaded ONCE per file (expensive operation).
+  // Then we create one creative + one ad per text variation.
+  // Names follow the pattern: "v1-feed - Texto 1", "v1-feed - Texto 2", …
   //
-  // Result: N files → N ads in 1 ad set, each ad carrying all text variations.
+  // Example with 3 files and 5 texts → 15 ads in 1 ad set:
+  //   v1-feed - Texto 1 … v1-feed - Texto 5
+  //   v2-feed - Texto 1 … v2-feed - Texto 5
+  //   v3-feed - Texto 1 … v3-feed - Texto 5
   for (const file of payload.files) {
-    const adName = file.originalName.replace(/\.[^/.]+$/, '') // strip extension
+    const baseName = file.originalName.replace(/\.[^/.]+$/, '')
 
     try {
-      // ── Size guard ───────────────────────────────────────────────────────────
       validateFileSize(file)
 
-      // ── Upload media ─────────────────────────────────────────────────────────
+      // Upload media once per file
       let imageHash: string | undefined
       let videoId:   string | undefined
 
@@ -347,57 +293,84 @@ export async function quickPublish(payload: PublishPayload): Promise<PublishResu
         imageHash = await uploadImage(client, accountId, file)
         await log('UPLOAD_IMAGE', 'POST', `${accountId}/adimages`, { file: file.originalName }, { hash: imageHash }, true)
       } else {
-        videoId = await uploadVideo(client, accountId, file, adName)
+        videoId = await uploadVideo(client, accountId, file, baseName)
         await log('UPLOAD_VIDEO', 'POST', `${accountId}/advideos`, { file: file.originalName }, { video_id: videoId }, true)
       }
 
-      // ── Build asset_feed_spec with ALL text variations ────────────────────────
-      // This is what sets all 5 texts + 5 titles + 5 descriptions on a single ad.
-      // Facebook uses Advantage+ Creative to test which combinations perform best.
-      const assetFeedSpec: Record<string, unknown> = {
-        bodies,
-        titles,
-        link_urls: [{ website_url: payload.destinationUrl, display_url: payload.destinationUrl }],
-        call_to_action_types: [payload.callToAction],
-      }
-      if (descriptions.length > 0) assetFeedSpec.descriptions = descriptions
+      // Create one creative + one ad for each text variation
+      for (let i = 0; i < bodyTexts.length; i++) {
+        const adLabel     = `${baseName} - Texto ${i + 1}`
+        const bodyText    = bodyTexts[i]
+        const title       = titles[i]       ?? titles[0]       ?? payload.campaignName
+        const description = descriptions[i] ?? descriptions[0] ?? ''
 
-      if (imageHash) {
-        assetFeedSpec.images     = [{ hash: imageHash }]
-        assetFeedSpec.ad_formats = ['SINGLE_IMAGE']
-      } else {
-        assetFeedSpec.videos     = [{ video_id: videoId }]
-        assetFeedSpec.ad_formats = ['SINGLE_VIDEO']
-      }
+        try {
+          // Build standard object_story_spec (no asset_feed_spec → no dynamic creative)
+          let storySpec: Record<string, unknown>
 
-      // ── Create creative ───────────────────────────────────────────────────────
-      const creativePayload = {
-        name: `Creative - ${adName}`,
-        object_story_spec: { page_id: payload.pageId },
-        asset_feed_spec: assetFeedSpec,
-      }
-      const creative = await withRetry(() =>
-        client.post<{ id: string }>(`${accountId}/adcreatives`, creativePayload),
-      )
-      await log('CREATE_CREATIVE', 'POST', `${accountId}/adcreatives`, creativePayload, creative, true)
+          if (imageHash) {
+            storySpec = {
+              page_id: payload.pageId,
+              link_data: {
+                image_hash: imageHash,
+                link:        payload.destinationUrl,
+                message:     bodyText,
+                name:        title,
+                description: description || undefined,
+                call_to_action: {
+                  type:  payload.callToAction,
+                  value: { link: payload.destinationUrl },
+                },
+              },
+            }
+          } else {
+            storySpec = {
+              page_id: payload.pageId,
+              video_data: {
+                video_id:    videoId,
+                title,
+                message:     bodyText,
+                description: description || undefined,
+                call_to_action: {
+                  type:  payload.callToAction,
+                  value: { link: payload.destinationUrl },
+                },
+              },
+            }
+          }
 
-      // ── Create ad inside the single shared ad set ─────────────────────────────
-      const adPayload = {
-        name: adName,
-        adset_id: metaAdSetId,
-        creative: { creative_id: creative.id },
-        status: 'PAUSED',
-      }
-      const ad = await withRetry(() =>
-        client.post<{ id: string }>(`${accountId}/ads`, adPayload),
-      )
-      await log('CREATE_AD', 'POST', `${accountId}/ads`, adPayload, ad, true)
+          const creativePayload = {
+            name: `Creative - ${adLabel}`,
+            object_story_spec: storySpec,
+          }
+          const creative = await withRetry(() =>
+            client.post<{ id: string }>(`${accountId}/adcreatives`, creativePayload),
+          )
+          await log('CREATE_CREATIVE', 'POST', `${accountId}/adcreatives`, creativePayload, creative, true)
 
-      adsCreated++
+          const adPayload = {
+            name:     adLabel,
+            adset_id: metaAdSetId,
+            creative: { creative_id: creative.id },
+            status:   'PAUSED',
+          }
+          const ad = await withRetry(() =>
+            client.post<{ id: string }>(`${accountId}/ads`, adPayload),
+          )
+          await log('CREATE_AD', 'POST', `${accountId}/ads`, adPayload, ad, true)
+
+          adsCreated++
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : 'Erro desconhecido'
+          errors.push(`${adLabel}: ${msg}`)
+          await log('CREATE_AD_ERROR', 'POST', `${accountId}/ads`, { label: adLabel }, {}, false, msg)
+        }
+      }
     } catch (e) {
+      // Media upload failed — skip all text variations for this file
       const msg = e instanceof Error ? e.message : 'Erro desconhecido'
-      errors.push(`${adName}: ${msg}`)
-      await log('CREATE_AD_ERROR', 'POST', `${accountId}/ads`, { file: file.originalName }, {}, false, msg)
+      errors.push(`${baseName}: ${msg}`)
+      await log('UPLOAD_ERROR', 'POST', `${accountId}/adimages`, { file: file.originalName }, {}, false, msg)
     }
   }
 
