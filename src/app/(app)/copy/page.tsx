@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   PenLine, Plus, Trash2, Edit3, Check, Copy, ChevronDown, ChevronUp,
   Sparkles, ArrowLeft, User, Loader2, FileText, Mail, Megaphone,
@@ -107,17 +107,34 @@ function CopyBtn({ text }: { text: string }) {
 
 function AnguloTooltip({ angulo }: { angulo: string }) {
   const [open, setOpen] = useState(false)
+  const [pos,  setPos]  = useState({ top: 0, left: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  const handleOpen = () => {
+    if (!open && btnRef.current) {
+      const r   = btnRef.current.getBoundingClientRect()
+      const popW = 280
+      let left   = r.left
+      if (left + popW > window.innerWidth - 12) left = window.innerWidth - popW - 12
+      setPos({ top: r.bottom + 6, left })
+    }
+    setOpen(v => !v)
+  }
+
   return (
-    <div className="relative flex-shrink-0">
+    <div className="flex-shrink-0">
       <button
-        onClick={() => setOpen(!open)}
+        ref={btnRef}
+        onClick={handleOpen}
         className="p-1.5 rounded text-indigo-500/60 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors">
         <Info className="w-3.5 h-3.5" />
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-7 z-20 w-72 bg-surface-750 border border-indigo-500/30 rounded-xl p-3 shadow-2xl">
+          <div className="fixed inset-0 z-[9990]" onClick={() => setOpen(false)} />
+          <div
+            className="fixed z-[9999] w-[280px] bg-[#1e2130] border border-indigo-500/40 rounded-xl p-3.5 shadow-2xl shadow-black/50"
+            style={{ top: pos.top, left: pos.left }}>
             <div className="flex items-start gap-2">
               <Zap className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-indigo-200/90 leading-relaxed">{angulo}</p>
@@ -143,8 +160,35 @@ function AdVariationCard({
   const [showComment, setShowComment] = useState(false)
   const [comment,     setComment]     = useState('')
   const [refining,    setRefining]    = useState(false)
+  const [popupPos,    setPopupPos]    = useState({ top: 0, left: 0 })
+  const msgBtnRef = useRef<HTMLButtonElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const isLong = itemType === 'texto'
+
+  const openComment = () => {
+    if (!showComment && msgBtnRef.current) {
+      const r      = msgBtnRef.current.getBoundingClientRect()
+      const popW   = 320
+      const popH   = 190
+      let   left   = r.right + 10
+      let   top    = r.top
+
+      // Se não cabe à direita, vai para a esquerda
+      if (left + popW > window.innerWidth - 12) left = r.left - popW - 10
+      // Se não cabe para baixo, sobe
+      if (top + popH > window.innerHeight - 12) top = window.innerHeight - popH - 12
+
+      setPopupPos({ top, left })
+      setShowComment(true)
+      setTimeout(() => textareaRef.current?.focus(), 50)
+    } else {
+      setShowComment(false)
+      setComment('')
+    }
+  }
+
+  const closeComment = () => { setShowComment(false); setComment('') }
 
   const refine = async () => {
     if (!comment.trim()) return toast.error('Escreva um comentário para refinar.')
@@ -154,9 +198,7 @@ function AdVariationCard({
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
-          personaId,
-          subtype,
-          itemType,
+          personaId, subtype, itemType,
           originalText:   variation.texto,
           originalAngulo: variation.angulo,
           comment,
@@ -165,8 +207,7 @@ function AdVariationCard({
       const json = await res.json()
       if (!json.success) throw new Error(json.error)
       onRefined(json.data)
-      setComment('')
-      setShowComment(false)
+      closeComment()
       toast.success('Variação refinada!')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao refinar')
@@ -176,72 +217,92 @@ function AdVariationCard({
   }
 
   return (
-    <div className="bg-surface-750 border border-surface-600 rounded-xl overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-surface-600/60">
-        <span className="text-xs font-bold text-indigo-400 font-mono w-5 flex-shrink-0">{index + 1}</span>
-        <AnguloTooltip angulo={variation.angulo} />
-        <div className="flex-1" />
-        <CopyBtn text={variation.texto} />
-        <button
-          onClick={() => setShowComment(!showComment)}
-          className={`p-1.5 rounded transition-colors flex-shrink-0 ${
-            showComment
-              ? 'text-amber-400 bg-amber-500/10'
-              : 'text-gray-500 hover:text-amber-400 hover:bg-amber-500/10'
-          }`}>
-          <MessageSquare className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      {/* Content */}
-      <div className="px-3 py-3">
-        {isLong ? (
-          <div className="space-y-1.5">
-            {variation.texto.split(/\n+/).filter(Boolean).map((line, i) => (
-              <p key={i} className="text-sm text-gray-200 leading-relaxed">{line}</p>
-            ))}
-          </div>
-        ) : (
-          <p className={`leading-snug ${
-            itemType === 'headline' ? 'text-base font-semibold text-gray-100' : 'text-sm text-gray-200'
-          }`}>{variation.texto}</p>
-        )}
-      </div>
-
-      {/* Comment box */}
-      {showComment && (
-        <div className="px-3 pb-3 pt-1 border-t border-amber-500/20 bg-amber-500/5 space-y-2">
-          <p className="text-[11px] text-amber-400/80 font-medium">Instrução para a IA refinar esta variação</p>
-          <textarea
-            value={comment}
-            onChange={e => setComment(e.target.value)}
-            placeholder="Ex: Deixa mais urgente, muda o ângulo para storytelling, aumenta o tamanho, usa mais emojis..."
-            rows={2}
-            className="w-full rounded-lg bg-surface-800 border border-amber-500/30 text-gray-100
-              placeholder-gray-600 px-3 py-2 text-xs focus:outline-none focus:ring-2
-              focus:ring-amber-500/40 resize-none leading-relaxed"
-          />
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => { setShowComment(false); setComment('') }}
-              className="text-xs text-gray-500 hover:text-gray-300 transition-colors">
-              Cancelar
-            </button>
-            <button
-              onClick={refine}
-              disabled={refining || !comment.trim()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600/20
-                border border-amber-500/40 text-xs font-medium text-amber-300
-                hover:bg-amber-600/30 transition-colors disabled:opacity-50 ml-auto">
-              {refining
-                ? <><Loader2 className="w-3 h-3 animate-spin" /> Refinando...</>
-                : <><RefreshCw className="w-3 h-3" /> Refinar com IA</>}
-            </button>
-          </div>
+    <>
+      <div className="bg-surface-750 border border-surface-600 rounded-xl">
+        {/* Header */}
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-surface-600/60">
+          <span className="text-xs font-bold text-indigo-400 font-mono w-5 flex-shrink-0">{index + 1}</span>
+          <AnguloTooltip angulo={variation.angulo} />
+          <div className="flex-1" />
+          <CopyBtn text={variation.texto} />
+          <button
+            ref={msgBtnRef}
+            onClick={openComment}
+            title="Refinar com comentário"
+            className={`p-1.5 rounded transition-colors flex-shrink-0 ${
+              showComment
+                ? 'text-amber-400 bg-amber-500/15'
+                : 'text-gray-500 hover:text-amber-400 hover:bg-amber-500/10'
+            }`}>
+            <MessageSquare className="w-3.5 h-3.5" />
+          </button>
         </div>
+
+        {/* Content */}
+        <div className="px-3 py-3">
+          {isLong ? (
+            <div className="space-y-1.5">
+              {variation.texto.split(/\n+/).filter(Boolean).map((line, i) => (
+                <p key={i} className="text-sm text-gray-200 leading-relaxed">{line}</p>
+              ))}
+            </div>
+          ) : (
+            <p className={`leading-snug ${
+              itemType === 'headline' ? 'text-base font-semibold text-gray-100' : 'text-sm text-gray-200'
+            }`}>{variation.texto}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Comment popup — fixed, fora do overflow de qualquer pai */}
+      {showComment && (
+        <>
+          <div className="fixed inset-0 z-[9990]" onClick={closeComment} />
+          <div
+            className="fixed z-[9999] w-[320px] bg-[#1a1d2e] border border-amber-500/30 rounded-2xl shadow-2xl shadow-black/60 p-4 space-y-3"
+            style={{ top: popupPos.top, left: popupPos.left }}>
+            {/* Cabeçalho */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-xs font-semibold text-amber-300">Refinar com IA</span>
+              </div>
+              <button onClick={closeComment} className="p-1 rounded text-gray-500 hover:text-gray-300 transition-colors">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Textarea */}
+            <textarea
+              ref={textareaRef}
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) refine() }}
+              placeholder="Ex: mais urgente, ângulo storytelling, aumenta tamanho, mais emojis..."
+              rows={3}
+              className="w-full rounded-xl bg-surface-800 border border-amber-500/20 text-gray-100
+                placeholder-gray-600 px-3 py-2.5 text-xs focus:outline-none focus:ring-2
+                focus:ring-amber-500/40 resize-none leading-relaxed"
+            />
+
+            {/* Ações */}
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-gray-600">⌘↵ para enviar</span>
+              <button
+                onClick={refine}
+                disabled={refining || !comment.trim()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600/20
+                  border border-amber-500/40 text-xs font-medium text-amber-300
+                  hover:bg-amber-600/30 transition-colors disabled:opacity-50">
+                {refining
+                  ? <><Loader2 className="w-3 h-3 animate-spin" /> Refinando...</>
+                  : <><RefreshCw className="w-3 h-3" /> Refinar</>}
+              </button>
+            </div>
+          </div>
+        </>
       )}
-    </div>
+    </>
   )
 }
 
