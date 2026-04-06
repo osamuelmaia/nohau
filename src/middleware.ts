@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyToken } from '@/lib/auth-token'
 
 const SESSION_COOKIE = 'zima_session'
-const PUBLIC = ['/login', '/api/auth', '/_next', '/favicon', '/uploads']
+const SECRET         = process.env.NEXTAUTH_SECRET ?? 'change-me-in-production'
+const PUBLIC         = ['/login', '/api/auth', '/_next', '/favicon', '/uploads']
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
-  if (PUBLIC.some((p) => pathname.startsWith(p))) return NextResponse.next()
+  if (PUBLIC.some(p => pathname.startsWith(p))) return NextResponse.next()
 
-  const session = req.cookies.get(SESSION_COOKIE)
-  if (!session?.value) return NextResponse.redirect(new URL('/login', req.url))
+  const token = req.cookies.get(SESSION_COOKIE)?.value
+  if (!token || !(await verifyToken(token, SECRET))) {
+    return NextResponse.redirect(new URL('/login', req.url))
+  }
+
   return NextResponse.next()
 }
 

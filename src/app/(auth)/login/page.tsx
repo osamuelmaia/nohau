@@ -26,7 +26,7 @@ export default function LoginPage() {
       if (json.success) {
         router.push('/')
       } else {
-        toast.error('Senha incorreta')
+        toast.error(json.error ?? 'Senha incorreta')
       }
     } catch {
       toast.error('Erro de conexão')
@@ -85,10 +85,6 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="text-xs text-gray-600 text-center mt-4">
-            Senha padrão: <code className="bg-surface-700 px-1 rounded">admin123</code>
-            <br />Configure em <code className="bg-surface-700 px-1 rounded">.env.local</code>
-          </p>
         </div>
       </div>
     </div>

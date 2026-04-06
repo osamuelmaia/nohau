@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Zap, Settings, Youtube, Megaphone, ChartNoAxesCombined, Scissors, PenLine, LayoutDashboard } from 'lucide-react'
+import { Zap, Settings, Youtube, Megaphone, ChartNoAxesCombined, Scissors, PenLine, LayoutDashboard, LogOut } from 'lucide-react'
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard',   icon: LayoutDashboard,     match: (p: string) => p.startsWith('/dashboard') || p === '/',                          settings: '/settings' },
@@ -12,6 +12,11 @@ const NAV = [
   { href: '/cliper',    label: 'Cliper',      icon: Scissors,            match: (p: string) => p.startsWith('/cliper'),                                           settings: '/settings' },
   { href: '/copy',      label: 'Copy Agent',  icon: PenLine,             match: (p: string) => p.startsWith('/copy'),                                             settings: '/settings' },
 ]
+
+async function handleLogout() {
+  await fetch('/api/auth', { method: 'DELETE' })
+  window.location.href = '/login'
+}
 
 export default function NavHeader() {
   const path    = usePathname()
@@ -40,12 +45,20 @@ export default function NavHeader() {
         ))}
       </nav>
 
-      {/* Configurações — aponta para a settings da feature ativa */}
-      <Link href={active.settings}
-        className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors px-3 py-1.5 rounded-lg hover:bg-surface-750 flex-shrink-0">
-        <Settings className="w-3.5 h-3.5" />
-        Configurações
-      </Link>
+      {/* Right side actions */}
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <Link href={active.settings}
+          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors px-3 py-1.5 rounded-lg hover:bg-surface-750">
+          <Settings className="w-3.5 h-3.5" />
+          Configurações
+        </Link>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-500/10">
+          <LogOut className="w-3.5 h-3.5" />
+          Sair
+        </button>
+      </div>
     </header>
   )
 }
