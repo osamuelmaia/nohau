@@ -437,8 +437,8 @@ export default function DashboardPage() {
 
   const sortedDaily = [...daily].sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1
-    const va = (a as Record<string, unknown>)[sortKey]
-    const vb = (b as Record<string, unknown>)[sortKey]
+    const va = (a as unknown as Record<string, unknown>)[sortKey]
+    const vb = (b as unknown as Record<string, unknown>)[sortKey]
     if (typeof va === 'string' && typeof vb === 'string') return va.localeCompare(vb) * dir
     return (Number(va ?? 0) - Number(vb ?? 0)) * dir
   })
