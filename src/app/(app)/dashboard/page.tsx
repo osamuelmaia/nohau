@@ -10,7 +10,7 @@ import {
   AlertTriangle, Download, TrendingDown, Minus,
 } from 'lucide-react'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, Legend,
 } from 'recharts'
 import toast from 'react-hot-toast'
@@ -585,84 +585,174 @@ function TopCampaigns({ rows }: { rows: CampaignInsight[] }) {
 }
 
 // ── EvolutionChart ────────────────────────────────────────────────────────────
-type ChartMetric = { key: keyof CampaignInsight; label: string; color: string }
+type ChartMetric = {
+  key:       keyof CampaignInsight
+  label:     string
+  color:     string
+  gradient:  string
+  format:    'currency' | 'number'
+}
 
 const CHART_METRICS: ChartMetric[] = [
-  { key: 'spend',     label: 'Investido',  color: '#34d399' },
-  { key: 'purchases', label: 'Compras',    color: '#60a5fa' },
-  { key: 'leads',     label: 'Leads',      color: '#a78bfa' },
-  { key: 'revenue',   label: 'Receita',    color: '#4ade80' },
+  { key: 'spend',     label: 'Investido', color: '#6366f1', gradient: 'gradSpend',     format: 'currency' },
+  { key: 'revenue',   label: 'Receita',   color: '#10b981', gradient: 'gradRevenue',   format: 'currency' },
+  { key: 'purchases', label: 'Compras',   color: '#3b82f6', gradient: 'gradPurchases', format: 'number'   },
+  { key: 'leads',     label: 'Leads',     color: '#f472b6', gradient: 'gradLeads',     format: 'number'   },
 ]
 
-function EvolutionChart({ daily }: { daily: CampaignInsight[] }) {
-  const [activeMetrics, setActiveMetrics] = useState<string[]>(['spend', 'purchases'])
+function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string; payload: Record<string, unknown> }[]; label?: string }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="bg-[#13151f] border border-surface-600 rounded-2xl p-3.5 shadow-2xl shadow-black/60 min-w-[160px]">
+      <p className="text-xs font-semibold text-gray-300 mb-2.5">{label}</p>
+      {payload.map(p => (
+        <div key={p.name} className="flex items-center justify-between gap-4 mb-1.5 last:mb-0">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
+            <span className="text-xs text-gray-400">{p.name}</span>
+          </div>
+          <span className="text-xs font-semibold text-white">
+            {CHART_METRICS.find(m => m.label === p.name)?.format === 'currency'
+              ? p.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+              : Math.round(p.value).toLocaleString('pt-BR')
+            }
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
 
-  // Aggregate by date
+function EvolutionChart({ daily }: { daily: CampaignInsight[] }) {
+  const [active, setActive] = useState<string[]>(['spend', 'revenue'])
+
   const byDate = daily.reduce<Record<string, Record<string, number>>>((acc, row) => {
-    const d = row.date ?? 'unknown'
+    const d = row.date ?? ''
+    if (!d) return acc
     if (!acc[d]) acc[d] = {}
-    for (const m of CHART_METRICS) {
-      acc[d][m.key] = (acc[d][m.key] ?? 0) + (row[m.key] as number)
-    }
+    for (const m of CHART_METRICS)
+      acc[d][m.key as string] = (acc[d][m.key as string] ?? 0) + (row[m.key] as number)
     return acc
   }, {})
 
-  const chartData = Object.entries(byDate)
+  const data = Object.entries(byDate)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, vals]) => ({
-      date: new Date(date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      label: new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
       ...vals,
     }))
 
-  if (!chartData.length) return null
+  if (data.length < 2) return null
 
   const toggle = (key: string) =>
-    setActiveMetrics(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
+    setActive(prev => prev.includes(key)
+      ? prev.length > 1 ? prev.filter(k => k !== key) : prev
+      : [...prev, key]
+    )
+
+  const activeMetrics = CHART_METRICS.filter(m => active.includes(m.key as string))
+
+  // separate currency vs number metrics for dual axis
+  const leftMetrics  = activeMetrics.filter(m => m.format === 'currency')
+  const rightMetrics = activeMetrics.filter(m => m.format === 'number')
+  const hasLeft  = leftMetrics.length > 0
+  const hasRight = rightMetrics.length > 0
 
   return (
-    <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-gray-300">Evolução Diária</h3>
-        <div className="flex gap-2">
-          {CHART_METRICS.map(m => (
-            <button
-              key={m.key}
-              onClick={() => toggle(m.key as string)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors border ${
-                activeMetrics.includes(m.key as string)
-                  ? 'bg-surface-700 text-gray-200 border-surface-600'
-                  : 'bg-transparent text-gray-500 border-transparent hover:text-gray-400'
-              }`}
-              style={activeMetrics.includes(m.key as string) ? { borderColor: m.color, color: m.color } : {}}>
-              {m.label}
-            </button>
-          ))}
+    <div className="bg-surface-800 border border-surface-700 rounded-2xl p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h3 className="text-sm font-semibold text-white">Evolução Diária</h3>
+          <p className="text-[11px] text-gray-500 mt-0.5">{data.length} dias com dados</p>
+        </div>
+        {/* Metric toggles */}
+        <div className="flex items-center gap-2">
+          {CHART_METRICS.map(m => {
+            const on = active.includes(m.key as string)
+            return (
+              <button
+                key={m.key as string}
+                onClick={() => toggle(m.key as string)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all border ${
+                  on ? 'border-opacity-60' : 'border-transparent bg-surface-700/50 text-gray-500 hover:text-gray-400'
+                }`}
+                style={on ? { borderColor: m.color + '80', background: m.color + '15', color: m.color } : {}}>
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: on ? m.color : '#4b5563' }} />
+                {m.label}
+              </button>
+            )
+          })}
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={280}>
-        <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-          <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 11 }} />
-          <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} width={60} />
-          <RechartsTooltip
-            contentStyle={{ background: '#1e2433', border: '1px solid #374151', borderRadius: 8 }}
-            labelStyle={{ color: '#d1d5db' }}
-            itemStyle={{ color: '#9ca3af' }}
+
+      <ResponsiveContainer width="100%" height={300}>
+        <AreaChart data={data} margin={{ top: 10, right: hasRight ? 55 : 10, left: hasLeft ? 10 : 0, bottom: 0 }}>
+          <defs>
+            {CHART_METRICS.map(m => (
+              <linearGradient key={m.gradient} id={m.gradient} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor={m.color} stopOpacity={0.25} />
+                <stop offset="95%" stopColor={m.color} stopOpacity={0}    />
+              </linearGradient>
+            ))}
+          </defs>
+
+          <CartesianGrid strokeDasharray="4 4" stroke="#1e2130" vertical={false} />
+
+          <XAxis
+            dataKey="label"
+            tick={{ fill: '#6b7280', fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+            dy={8}
           />
-          <Legend wrapperStyle={{ color: '#9ca3af', fontSize: 12 }} />
-          {CHART_METRICS.filter(m => activeMetrics.includes(m.key as string)).map(m => (
-            <Line
-              key={m.key}
-              type="monotone"
-              dataKey={m.key as string}
-              name={m.label}
-              stroke={m.color}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4 }}
+
+          {hasLeft && (
+            <YAxis
+              yAxisId="left"
+              orientation="left"
+              tick={{ fill: '#6b7280', fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+              width={62}
+              tickFormatter={v => v >= 1000 ? `R$${(v / 1000).toFixed(0)}k` : `R$${v.toFixed(0)}`}
             />
-          ))}
-        </LineChart>
+          )}
+          {hasRight && (
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              tick={{ fill: '#6b7280', fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+              width={40}
+              tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))}
+            />
+          )}
+
+          <RechartsTooltip
+            content={<ChartTooltip />}
+            cursor={{ stroke: '#374151', strokeWidth: 1, strokeDasharray: '4 4' }}
+          />
+
+          {activeMetrics.map(m => {
+            const yId = m.format === 'currency' ? (hasLeft ? 'left' : 'right') : (hasRight ? 'right' : 'left')
+            return (
+              <Area
+                key={m.key as string}
+                yAxisId={yId}
+                type="monotone"
+                dataKey={m.key as string}
+                name={m.label}
+                stroke={m.color}
+                strokeWidth={2}
+                fill={`url(#${m.gradient})`}
+                dot={false}
+                activeDot={{ r: 5, strokeWidth: 0, fill: m.color }}
+              />
+            )
+          })}
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   )
