@@ -76,7 +76,7 @@ export async function getInsights(params: InsightsParams): Promise<CampaignInsig
     'campaign_id', 'campaign_name',
     'spend', 'impressions', 'reach', 'clicks',
     'ctr', 'cpm', 'frequency',
-    'actions', 'landing_page_views', 'action_values',
+    'actions', 'action_values',
   ].join(',')
 
   const queryParams: Record<string, string> = {
@@ -107,9 +107,8 @@ export async function getInsights(params: InsightsParams): Promise<CampaignInsig
     cpm:           string
     frequency:     string
     date_start?:          string
-    actions?:             MetaAction[]
-    landing_page_views?:  string
-    action_values?:       MetaAction[]
+    actions?:      MetaAction[]
+    action_values?: MetaAction[]
   }
 
   type InsightsResp = { data: MetaRow[] }
@@ -136,7 +135,7 @@ export async function getInsights(params: InsightsParams): Promise<CampaignInsig
     ])
 
     const revenue          = sumActions(actionValues, ['purchase', 'offsite_conversion.fb_pixel_purchase', 'omni_purchase'])
-    const landingPageViews = parseInt(row.landing_page_views || '0')
+    const landingPageViews = sumActions(actions, ['landing_page_view'])
 
     const spend       = parseFloat(row.spend       || '0')
     const impressions = parseInt(row.impressions   || '0')
