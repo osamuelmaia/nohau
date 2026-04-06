@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Zap, Settings, Youtube, Megaphone, ChartNoAxesCombined, Scissors, PenLine, LayoutDashboard, LogOut } from 'lucide-react'
+import { Zap, Youtube, Megaphone, ChartNoAxesCombined, Scissors, PenLine, LayoutDashboard, LogOut } from 'lucide-react'
 import WorkspaceSwitcher from '@/components/WorkspaceSwitcher'
 
 const NAV = [
@@ -25,8 +25,6 @@ export default function NavHeader() {
 
   const workspaceMatch = path.match(/^\/dashboard\/([^/]+)/)
   const workspaceId    = workspaceMatch?.[1] ?? null
-
-  const settingsHref = workspaceId ? `/settings/${workspaceId}` : (active.settings ?? '/settings')
 
   return (
     <header className="flex items-center justify-between px-6 py-3 bg-surface-900 border-b border-surface-700 sticky top-0 z-40">
@@ -57,11 +55,6 @@ export default function NavHeader() {
 
       {/* Right side actions */}
       <div className="flex items-center gap-1 flex-shrink-0">
-        <Link href={settingsHref}
-          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors px-3 py-1.5 rounded-lg hover:bg-surface-750">
-          <Settings className="w-3.5 h-3.5" />
-          Configurações
-        </Link>
         <button
           onClick={handleLogout}
           className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-500/10">
