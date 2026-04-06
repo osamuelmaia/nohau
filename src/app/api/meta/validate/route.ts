@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { validateToken } from '@/services/meta/auth'
 import { prisma } from '@/services/db/client'

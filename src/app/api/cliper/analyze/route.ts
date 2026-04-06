@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI, { toFile } from 'openai'
 import { prisma } from '@/services/db/client'

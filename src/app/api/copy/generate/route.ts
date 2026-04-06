@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/services/db/client'
 import { generateCopy, CopyType } from '@/services/openai/copy-agent'

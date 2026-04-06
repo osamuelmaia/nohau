@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, ShadingType, WidthType, Table, TableRow, TableCell } from 'docx'
 

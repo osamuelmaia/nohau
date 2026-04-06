@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/services/db/client'
 import { generateYoutubeContent } from '@/services/openai/youtube-ops'
