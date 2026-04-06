@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Zap, Settings, Youtube, Megaphone, ChartNoAxesCombined, Scissors, PenLine, LayoutDashboard, LogOut } from 'lucide-react'
+import WorkspaceSwitcher from '@/components/WorkspaceSwitcher'
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard',   icon: LayoutDashboard,     match: (p: string) => p.startsWith('/dashboard') || p === '/',                          settings: '/settings' },
@@ -22,15 +23,24 @@ export default function NavHeader() {
   const path    = usePathname()
   const active  = NAV.find(n => n.match(path)) ?? NAV[0]
 
+  const workspaceMatch = path.match(/^\/dashboard\/([^/]+)/)
+  const workspaceId    = workspaceMatch?.[1] ?? null
+
+  const settingsHref = workspaceId ? `/settings/${workspaceId}` : (active.settings ?? '/settings')
+
   return (
     <header className="flex items-center justify-between px-6 py-3 bg-surface-900 border-b border-surface-700 sticky top-0 z-40">
-      {/* Logo */}
-      <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
-        <div className="w-7 h-7 rounded-lg bg-gradient-brand flex items-center justify-center">
-          <Zap className="w-3.5 h-3.5 text-white" />
-        </div>
-        <span className="font-bold text-sm text-white tracking-tight">Zima Ads</span>
-      </Link>
+      {/* Logo + workspace switcher */}
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <Link href="/" className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-gradient-brand flex items-center justify-center">
+            <Zap className="w-3.5 h-3.5 text-white" />
+          </div>
+          <span className="font-bold text-sm text-white tracking-tight">Zima Ads</span>
+        </Link>
+        {/* Workspace switcher — only on dashboard routes */}
+        {workspaceId && <WorkspaceSwitcher currentId={workspaceId} />}
+      </div>
 
       {/* Feature nav */}
       <nav className="flex items-center gap-1 bg-surface-800 border border-surface-700 rounded-xl p-1">
@@ -47,7 +57,7 @@ export default function NavHeader() {
 
       {/* Right side actions */}
       <div className="flex items-center gap-1 flex-shrink-0">
-        <Link href={active.settings}
+        <Link href={settingsHref}
           className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors px-3 py-1.5 rounded-lg hover:bg-surface-750">
           <Settings className="w-3.5 h-3.5" />
           Configurações

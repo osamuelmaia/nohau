@@ -7,14 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Settings {
-  id            String   @id @default("default")
+model Workspace {
+  id            String   @id @default(cuid())
+  name          String   @default("Dashboard Principal")
   metaToken     String?
   adAccountId   String?
   adAccountName String?
   pageId        String?
   openaiKey     String?
-  youtubePrompt String?  // custom system prompt for YouTube Ops generation
+  youtubePrompt String?
+  createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
 

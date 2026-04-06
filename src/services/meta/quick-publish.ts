@@ -3,16 +3,13 @@
 //
 // Structure produced:
 //   Campaign
-//   └── Ad Set  (1 shared set, PAUSED)
-//       ├── Ad "v1-feed - Texto 1"  → creative (v1-feed + text1 + title1 + desc1)
-//       ├── Ad "v1-feed - Texto 2"  → creative (v1-feed + text2 + title2 + desc2)
-//       │   …
-//       ├── Ad "v2-feed - Texto 1"  → creative (v2-feed + text1 + title1 + desc1)
-//       └── …
+//   ├── Conjunto: v1-feed  (is_dynamic_creative) → Ad [texto1…5, título1…5, desc1…5]
+//   ├── Conjunto: v2-feed  (is_dynamic_creative) → Ad [texto1…5, título1…5, desc1…5]
+//   └── Conjunto: v3-feed  (is_dynamic_creative) → Ad [texto1…5, título1…5, desc1…5]
 //
-// Media is uploaded once per file.
-// Each text variation becomes a separate ad (standard link_data / video_data).
-// NO asset_feed_spec / NO is_dynamic_creative — avoids Meta's 1-ad-per-adset limit.
+// Each ad set has is_dynamic_creative: true — required by Meta when the ad
+// creative uses asset_feed_spec (multiple text options per ad).
+// Meta enforces a hard limit of 1 active ad per dynamic-creative ad set.
 // Everything PAUSED — ready to review and activate in Meta Ads Manager.
 
 import { MetaApiClient, MetaError } from './client'
@@ -37,12 +34,12 @@ export interface PublishPayload {
   adSetName: string
   campaignType: CampaignType
   objective: string
-  budget: number          // BRL — converted to cents for Meta
+  budget: number
   pageId: string
   pixelId?: string
-  bodyTexts: string[]     // up to 5 — each becomes a separate ad per creative
-  titles: string[]        // up to 5 — matched by index to bodyTexts
-  descriptions: string[]  // up to 5 — matched by index to bodyTexts
+  bodyTexts: string[]
+  titles: string[]
+  descriptions: string[]
   destinationUrl: string
   callToAction: string
   geoLocations: string[]
@@ -147,13 +144,13 @@ function validateFileSize(file: UploadedFile): void {
   }
 }
 
-// ── Upload helpers ─────────────────────────────────────────────────────────────
+// ── Upload helpers ────────────────────────────────────────────────────────────
 async function uploadImage(client: MetaApiClient, accountId: string, file: UploadedFile): Promise<string> {
   const buf = await readFileBytes(file)
   const fd  = new FormData()
   fd.append(file.storedName, new Blob([new Uint8Array(buf)]), file.storedName)
   type ImgResp = { images: Record<string, { hash: string }> }
-  const res = await withRetry(() => client.postFormData<ImgResp>(`${accountId}/adimages`, fd))
+  const res     = await withRetry(() => client.postFormData<ImgResp>(`${accountId}/adimages`, fd))
   const entries = Object.values(res.images)
   if (!entries.length || !entries[0].hash) throw new Error('Upload de imagem não retornou hash')
   return entries[0].hash
@@ -175,7 +172,7 @@ export async function quickPublish(payload: PublishPayload): Promise<PublishResu
   let adsCreated = 0
 
   // ── Load credentials ───────────────────────────────────────────────────────
-  const settings = await prisma.settings.findUnique({ where: { id: 'default' } })
+  const settings = await prisma.workspace.findUnique({ where: { id: 'default' } })
   if (!settings?.metaToken)   throw new Error('Token Meta não configurado')
   if (!settings?.adAccountId) throw new Error('Conta de anúncios não selecionada')
 
@@ -199,13 +196,13 @@ export async function quickPublish(payload: PublishPayload): Promise<PublishResu
   const destinationType = getDestinationType(payload.objective)
   const promotedObject  = getPromotedObject(payload.objective, payload.pixelId)
 
-  // ── Normalise text arrays (filter empty, cap at 5) ─────────────────────────
-  const bodyTexts    = payload.bodyTexts.filter(Boolean).slice(0, 5)
-  const titles       = payload.titles.filter(Boolean).slice(0, 5)
-  const descriptions = payload.descriptions.filter(Boolean).slice(0, 5)
+  // ── Text variations (shared across all ad sets) ────────────────────────────
+  const bodies       = payload.bodyTexts.filter(Boolean).slice(0, 5).map(t => ({ text: t }))
+  const titles       = payload.titles.filter(Boolean).slice(0, 5).map(t => ({ text: t }))
+  const descriptions = payload.descriptions.filter(Boolean).slice(0, 5).map(t => ({ text: t }))
 
-  // At least 1 text required
-  if (!bodyTexts.length) bodyTexts.push(payload.campaignName)
+  if (!bodies.length)  bodies.push({ text: payload.campaignName })
+  if (!titles.length)  titles.push({ text: payload.campaignName })
 
   // ── 1. Create Campaign ─────────────────────────────────────────────────────
   const campaignPayload: Record<string, unknown> = {
@@ -231,61 +228,68 @@ export async function quickPublish(payload: PublishPayload): Promise<PublishResu
     throw new Error(`Erro na campanha: ${msg}`)
   }
 
-  // ── 2. Create single Ad Set ────────────────────────────────────────────────
+  // ── 2 + 3. One ad set per creative, each with 1 dynamic-creative ad ────────
   //
-  // Standard ad set — NO is_dynamic_creative.
-  // is_dynamic_creative limits the set to exactly 1 ad, which prevents
-  // multiple creatives from sharing the same set. Standard sets have no such limit.
-  const adSetPayload: Record<string, unknown> = {
-    name: payload.adSetName,
-    campaign_id: metaCampaignId,
-    status: 'PAUSED',
-    optimization_goal,
-    billing_event,
-    targeting: {
-      geo_locations: { countries: payload.geoLocations.length ? payload.geoLocations : ['BR'] },
-      age_min: 18,
-      age_max: 65,
-      publisher_platforms: ['facebook', 'instagram'],
-      facebook_positions: ['feed'],
-      instagram_positions: ['stream', 'story'],
-    },
-  }
-  if (destinationType) adSetPayload.destination_type = destinationType
-  if (promotedObject)  adSetPayload.promoted_object  = promotedObject
-  if (payload.campaignType === 'ABO') {
-    adSetPayload.daily_budget = budgetCents
-    adSetPayload.bid_strategy = 'LOWEST_COST_WITHOUT_CAP'
-  }
+  // Meta requires is_dynamic_creative: true on the ad set whenever the ad
+  // creative uses asset_feed_spec (multiple texts/titles/descriptions).
+  // That flag enforces a hard limit of 1 active ad per ad set — so we create
+  // one ad set per uploaded file.
+  //
+  // Result:
+  //   Campaign
+  //   ├── Conjunto: v1-feed  → ad [5 textos · 5 títulos · 5 descrições]
+  //   ├── Conjunto: v2-feed  → ad [5 textos · 5 títulos · 5 descrições]
+  //   └── Conjunto: v3-feed  → ad [5 textos · 5 títulos · 5 descrições]
 
-  let metaAdSetId: string
-  try {
-    const res = await withRetry(() => client.post<{ id: string }>(`${accountId}/adsets`, adSetPayload))
-    metaAdSetId = res.id
-    await log('CREATE_ADSET', 'POST', `${accountId}/adsets`, adSetPayload, res, true)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Erro ao criar conjunto'
-    await log('CREATE_ADSET', 'POST', `${accountId}/adsets`, adSetPayload, {}, false, msg)
-    throw new Error(`Erro no conjunto: ${msg}`)
-  }
+  let firstAdSetId: string | undefined
 
-  // ── 3. For each creative × each text → 1 ad ───────────────────────────────
-  //
-  // Media is uploaded ONCE per file (expensive operation).
-  // Then we create one creative + one ad per text variation.
-  // Names follow the pattern: "v1-feed - Texto 1", "v1-feed - Texto 2", …
-  //
-  // Example with 3 files and 5 texts → 15 ads in 1 ad set:
-  //   v1-feed - Texto 1 … v1-feed - Texto 5
-  //   v2-feed - Texto 1 … v2-feed - Texto 5
-  //   v3-feed - Texto 1 … v3-feed - Texto 5
   for (const file of payload.files) {
-    const baseName = file.originalName.replace(/\.[^/.]+$/, '')
+    const adName = file.originalName.replace(/\.[^/.]+$/, '')
 
     try {
       validateFileSize(file)
 
-      // Upload media once per file
+      // ── Ad set ──────────────────────────────────────────────────────────────
+      const adSetName = payload.files.length === 1
+        ? payload.adSetName
+        : `${payload.adSetName} - ${adName}`
+
+      const adSetPayload: Record<string, unknown> = {
+        name:                 adSetName,
+        campaign_id:          metaCampaignId,
+        status:               'PAUSED',
+        optimization_goal,
+        billing_event,
+        is_dynamic_creative:  true,
+        targeting: {
+          geo_locations: { countries: payload.geoLocations.length ? payload.geoLocations : ['BR'] },
+          age_min: 18,
+          age_max: 65,
+          publisher_platforms: ['facebook', 'instagram'],
+          facebook_positions:  ['feed'],
+          instagram_positions: ['stream', 'story'],
+        },
+      }
+      if (destinationType) adSetPayload.destination_type = destinationType
+      if (promotedObject)  adSetPayload.promoted_object  = promotedObject
+      if (payload.campaignType === 'ABO') {
+        adSetPayload.daily_budget = budgetCents
+        adSetPayload.bid_strategy = 'LOWEST_COST_WITHOUT_CAP'
+      }
+
+      let adSetId: string
+      try {
+        const res = await withRetry(() => client.post<{ id: string }>(`${accountId}/adsets`, adSetPayload))
+        adSetId = res.id
+        if (!firstAdSetId) firstAdSetId = adSetId
+        await log('CREATE_ADSET', 'POST', `${accountId}/adsets`, adSetPayload, res, true)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Erro ao criar conjunto'
+        await log('CREATE_ADSET', 'POST', `${accountId}/adsets`, adSetPayload, {}, false, msg)
+        throw new Error(`Conjunto "${adSetName}": ${msg}`)
+      }
+
+      // ── Upload media ─────────────────────────────────────────────────────────
       let imageHash: string | undefined
       let videoId:   string | undefined
 
@@ -293,91 +297,62 @@ export async function quickPublish(payload: PublishPayload): Promise<PublishResu
         imageHash = await uploadImage(client, accountId, file)
         await log('UPLOAD_IMAGE', 'POST', `${accountId}/adimages`, { file: file.originalName }, { hash: imageHash }, true)
       } else {
-        videoId = await uploadVideo(client, accountId, file, baseName)
+        videoId = await uploadVideo(client, accountId, file, adName)
         await log('UPLOAD_VIDEO', 'POST', `${accountId}/advideos`, { file: file.originalName }, { video_id: videoId }, true)
       }
 
-      // Create one creative + one ad for each text variation
-      for (let i = 0; i < bodyTexts.length; i++) {
-        const adLabel     = `${baseName} - Texto ${i + 1}`
-        const bodyText    = bodyTexts[i]
-        const title       = titles[i]       ?? titles[0]       ?? payload.campaignName
-        const description = descriptions[i] ?? descriptions[0] ?? ''
-
-        try {
-          // Build standard object_story_spec (no asset_feed_spec → no dynamic creative)
-          let storySpec: Record<string, unknown>
-
-          if (imageHash) {
-            storySpec = {
-              page_id: payload.pageId,
-              link_data: {
-                image_hash: imageHash,
-                link:        payload.destinationUrl,
-                message:     bodyText,
-                name:        title,
-                description: description || undefined,
-                call_to_action: {
-                  type:  payload.callToAction,
-                  value: { link: payload.destinationUrl },
-                },
-              },
-            }
-          } else {
-            storySpec = {
-              page_id: payload.pageId,
-              video_data: {
-                video_id:    videoId,
-                title,
-                message:     bodyText,
-                description: description || undefined,
-                call_to_action: {
-                  type:  payload.callToAction,
-                  value: { link: payload.destinationUrl },
-                },
-              },
-            }
-          }
-
-          const creativePayload = {
-            name: `Creative - ${adLabel}`,
-            object_story_spec: storySpec,
-          }
-          const creative = await withRetry(() =>
-            client.post<{ id: string }>(`${accountId}/adcreatives`, creativePayload),
-          )
-          await log('CREATE_CREATIVE', 'POST', `${accountId}/adcreatives`, creativePayload, creative, true)
-
-          const adPayload = {
-            name:     adLabel,
-            adset_id: metaAdSetId,
-            creative: { creative_id: creative.id },
-            status:   'PAUSED',
-          }
-          const ad = await withRetry(() =>
-            client.post<{ id: string }>(`${accountId}/ads`, adPayload),
-          )
-          await log('CREATE_AD', 'POST', `${accountId}/ads`, adPayload, ad, true)
-
-          adsCreated++
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : 'Erro desconhecido'
-          errors.push(`${adLabel}: ${msg}`)
-          await log('CREATE_AD_ERROR', 'POST', `${accountId}/ads`, { label: adLabel }, {}, false, msg)
-        }
+      // ── asset_feed_spec with all text variations ──────────────────────────────
+      const assetFeedSpec: Record<string, unknown> = {
+        bodies,
+        titles,
+        link_urls:            [{ website_url: payload.destinationUrl, display_url: payload.destinationUrl }],
+        call_to_action_types: [payload.callToAction],
       }
+      if (descriptions.length) assetFeedSpec.descriptions = descriptions
+
+      if (imageHash) {
+        assetFeedSpec.images     = [{ hash: imageHash }]
+        assetFeedSpec.ad_formats = ['SINGLE_IMAGE']
+      } else {
+        assetFeedSpec.videos     = [{ video_id: videoId }]
+        assetFeedSpec.ad_formats = ['SINGLE_VIDEO']
+      }
+
+      // ── Creative ─────────────────────────────────────────────────────────────
+      const creativePayload = {
+        name:              `Creative - ${adName}`,
+        object_story_spec: { page_id: payload.pageId },
+        asset_feed_spec:   assetFeedSpec,
+      }
+      const creative = await withRetry(() =>
+        client.post<{ id: string }>(`${accountId}/adcreatives`, creativePayload),
+      )
+      await log('CREATE_CREATIVE', 'POST', `${accountId}/adcreatives`, creativePayload, creative, true)
+
+      // ── Ad (1 per ad set — required by is_dynamic_creative) ──────────────────
+      const adPayload = {
+        name:     adName,
+        adset_id: adSetId,
+        creative: { creative_id: creative.id },
+        status:   'PAUSED',
+      }
+      const ad = await withRetry(() =>
+        client.post<{ id: string }>(`${accountId}/ads`, adPayload),
+      )
+      await log('CREATE_AD', 'POST', `${accountId}/ads`, adPayload, ad, true)
+
+      adsCreated++
     } catch (e) {
-      // Media upload failed — skip all text variations for this file
       const msg = e instanceof Error ? e.message : 'Erro desconhecido'
-      errors.push(`${baseName}: ${msg}`)
-      await log('UPLOAD_ERROR', 'POST', `${accountId}/adimages`, { file: file.originalName }, {}, false, msg)
+      errors.push(`${adName}: ${msg}`)
+      await log('CREATE_AD_ERROR', 'POST', `${accountId}/ads`, { file: file.originalName }, {}, false, msg)
     }
   }
 
   return {
     success: errors.length === 0,
     metaCampaignId,
-    metaAdSetId,
+    metaAdSetId: firstAdSetId,
     adsCreated,
     errors,
   }

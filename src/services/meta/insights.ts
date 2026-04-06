@@ -7,10 +7,11 @@ import { prisma } from '@/services/db/client'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface InsightsParams {
-  startDate:   string       // YYYY-MM-DD
-  endDate:     string       // YYYY-MM-DD
-  campaignIds?: string[]    // filter by campaign — empty = all
-  daily?:      boolean      // true = time_increment=1 (day-by-day rows)
+  startDate:    string       // YYYY-MM-DD
+  endDate:      string       // YYYY-MM-DD
+  campaignIds?: string[]     // filter by campaign — empty = all
+  daily?:       boolean      // true = time_increment=1 (day-by-day rows)
+  workspaceId?: string       // which workspace to use (defaults to 'default')
 }
 
 export interface CampaignInsight {
@@ -55,8 +56,8 @@ function sumActions(actions: MetaAction[], types: string[]): number {
   }, 0)
 }
 
-async function getClientAndAccount() {
-  const settings = await prisma.settings.findUnique({ where: { id: 'default' } })
+async function getClientAndAccount(workspaceId = 'default') {
+  const settings = await prisma.workspace.findUnique({ where: { id: workspaceId } })
   if (!settings?.metaToken)   throw new Error('Token Meta não configurado')
   if (!settings?.adAccountId) throw new Error('Conta de anúncios não selecionada')
 
@@ -70,7 +71,7 @@ async function getClientAndAccount() {
 
 // ── Fetch insights ─────────────────────────────────────────────────────────────
 export async function getInsights(params: InsightsParams): Promise<CampaignInsight[]> {
-  const { client, accountId } = await getClientAndAccount()
+  const { client, accountId } = await getClientAndAccount(params.workspaceId)
 
   const fields = [
     'campaign_id', 'campaign_name',
@@ -174,8 +175,8 @@ export async function getInsights(params: InsightsParams): Promise<CampaignInsig
 }
 
 // ── Fetch campaigns list (for filter dropdown) ─────────────────────────────────
-export async function getCampaignsList(): Promise<MetaCampaign[]> {
-  const { client, accountId } = await getClientAndAccount()
+export async function getCampaignsList({ workspaceId }: { workspaceId?: string } = {}): Promise<MetaCampaign[]> {
+  const { client, accountId } = await getClientAndAccount(workspaceId)
 
   type CampaignsResp = { data: MetaCampaign[] }
   const resp = await client.get<CampaignsResp>(`${accountId}/campaigns`, {

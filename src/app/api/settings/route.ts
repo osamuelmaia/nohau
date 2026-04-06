@@ -11,7 +11,7 @@ const schema = z.object({
 })
 
 export async function GET() {
-  const s = await prisma.settings.findUnique({ where: { id: 'default' } })
+  const s = await prisma.workspace.findUnique({ where: { id: 'default' } })
   return NextResponse.json({
     success: true,
     data: s ? {
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ success: false, error: parsed.error.errors[0].message }, { status: 400 })
 
   const { metaToken, adAccountId, adAccountName, pageId, openaiKey } = parsed.data
-  await prisma.settings.upsert({
+  await prisma.workspace.upsert({
     where: { id: 'default' },
     create: { id: 'default', metaToken, adAccountId, adAccountName, pageId, openaiKey },
     update: { metaToken, adAccountId, adAccountName, pageId, openaiKey },
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const body = await req.json()
-  await prisma.settings.upsert({
+  await prisma.workspace.upsert({
     where: { id: 'default' },
     create: { id: 'default', ...body },
     update: body,

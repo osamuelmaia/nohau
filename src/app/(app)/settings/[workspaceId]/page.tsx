@@ -1,44 +1,67 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { CheckCircle2, XCircle, Eye, EyeOff, RefreshCw, ChevronRight, CheckCheck, AlertCircle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { CheckCircle2, XCircle, Eye, EyeOff, RefreshCw, Trash2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import toast from 'react-hot-toast'
 
 interface AdAccount { id: string; name: string; account_id: string; account_status: number; currency: string }
-interface WorkspaceItem { id: string; name: string; adAccountName: string | null; hasToken: boolean }
 
-export default function SettingsPage() {
-  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([])
+export default function WorkspaceSettingsPage({ params }: { params: { workspaceId: string } }) {
+  const { workspaceId } = params
+  const router = useRouter()
 
-  useEffect(() => {
-    fetch('/api/workspaces').then(r => r.json()).then(d => {
-      if (d.success) setWorkspaces(d.data)
-    })
-  }, [])
-  const [token, setToken] = useState('')
-  const [pageId, setPageId] = useState('')
-  const [openaiKey, setOpenaiKey] = useState('')
-  const [showToken, setShowToken] = useState(false)
-  const [showOpenaiKey, setShowOpenaiKey] = useState(false)
-  const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<{ ok: boolean; name?: string } | null>(null)
-  const [accounts, setAccounts] = useState<AdAccount[]>([])
+  const [workspaceName, setWorkspaceName] = useState('')
+  const [savingName, setSavingName]       = useState(false)
+
+  const [token, setToken]               = useState('')
+  const [pageId, setPageId]             = useState('')
+  const [showToken, setShowToken]       = useState(false)
+  const [testing, setTesting]           = useState(false)
+  const [testResult, setTestResult]     = useState<{ ok: boolean; name?: string } | null>(null)
+  const [accounts, setAccounts]         = useState<AdAccount[]>([])
   const [loadingAccounts, setLoadingAccounts] = useState(false)
-  const [selectedAccount, setSelectedAccount] = useState('')
+  const [selectedAccount, setSelectedAccount]         = useState('')
   const [selectedAccountName, setSelectedAccountName] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [saving, setSaving]     = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
-    fetch('/api/settings').then((r) => r.json()).then((d) => {
-      if (d.data) {
-        setSelectedAccount(d.data.adAccountId ?? '')
-        setSelectedAccountName(d.data.adAccountName ?? '')
-        setPageId(d.data.pageId ?? '')
+    // Load workspace info
+    fetch('/api/workspaces').then(r => r.json()).then(d => {
+      if (d.success) {
+        const ws = d.data.find((w: { id: string; name: string }) => w.id === workspaceId)
+        if (ws) setWorkspaceName(ws.name)
       }
     })
-  }, [])
+
+    // Load settings for this workspace via PATCH-able endpoint
+    // We reuse /api/settings but scoped via the workspaces endpoint
+    fetch(`/api/workspaces`).then(r => r.json()).then(d => {
+      if (d.success) {
+        const ws = d.data.find((w: { id: string; adAccountId?: string; adAccountName?: string }) => w.id === workspaceId)
+        if (ws) {
+          setSelectedAccount(ws.adAccountId ?? '')
+          setSelectedAccountName(ws.adAccountName ?? '')
+        }
+      }
+    })
+  }, [workspaceId])
+
+  const saveWorkspaceName = async () => {
+    if (!workspaceName.trim()) return toast.error('Nome obrigatório')
+    setSavingName(true)
+    const res = await fetch(`/api/workspaces/${workspaceId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: workspaceName.trim() }),
+    })
+    const json = await res.json()
+    setSavingName(false)
+    if (json.success) toast.success('Nome salvo!')
+    else toast.error(json.error)
+  }
 
   const testToken = async () => {
     if (!token.trim()) return toast.error('Cole o token primeiro')
@@ -54,14 +77,14 @@ export default function SettingsPage() {
   }
 
   const loadAccounts = async () => {
-    if (!token.trim()) return toast.error('Salve o token primeiro')
-    // Save token first so the API can use it
-    await fetch('/api/settings', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    if (!token.trim()) return toast.error('Cole o token primeiro')
+    // Save token first so the accounts API can use it
+    await fetch(`/api/workspaces/${workspaceId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ metaToken: token, adAccountId: selectedAccount, adAccountName: selectedAccountName, pageId }),
     })
     setLoadingAccounts(true)
-    const res = await fetch('/api/meta/accounts')
+    const res = await fetch(`/api/meta/accounts?workspaceId=${workspaceId}`)
     const json = await res.json()
     if (json.success) setAccounts(json.data)
     else toast.error(json.error)
@@ -69,11 +92,17 @@ export default function SettingsPage() {
   }
 
   const save = async () => {
-    if (!token.trim()) return toast.error('Token é obrigatório')
+    if (!token.trim() && !selectedAccount) return toast.error('Preencha ao menos o token ou a conta')
     setSaving(true)
-    const res = await fetch('/api/settings', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ metaToken: token, adAccountId: selectedAccount, adAccountName: selectedAccountName, pageId, openaiKey }),
+    const body: Record<string, string> = {
+      adAccountId: selectedAccount,
+      adAccountName: selectedAccountName,
+      pageId,
+    }
+    if (token.trim()) body.metaToken = token
+    const res = await fetch(`/api/workspaces/${workspaceId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     })
     const json = await res.json()
     setSaving(false)
@@ -81,39 +110,42 @@ export default function SettingsPage() {
     else toast.error(json.error)
   }
 
+  const handleDelete = async () => {
+    if (workspaceId === 'default') return toast.error('Não é possível remover o workspace padrão')
+    if (!confirm(`Deletar o workspace "${workspaceName}"? Esta ação não pode ser desfeita.`)) return
+    setDeleting(true)
+    const res = await fetch(`/api/workspaces/${workspaceId}`, { method: 'DELETE' })
+    const json = await res.json()
+    setDeleting(false)
+    if (json.success) {
+      toast.success('Workspace deletado')
+      router.push('/settings')
+    } else {
+      toast.error(json.error)
+    }
+  }
+
   return (
     <div className="max-w-xl mx-auto px-4 py-8 space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-white">Configurações</h1>
+        <h1 className="text-xl font-bold text-white">Configurações do Workspace</h1>
         <p className="text-sm text-gray-500 mt-1">Token Meta + conta de anúncios</p>
       </div>
 
-      {/* Workspaces section */}
+      {/* Workspace name */}
       <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-300">Workspaces</h2>
-        </div>
-        <div className="space-y-1.5">
-          {workspaces.map(w => (
-            <Link
-              key={w.id}
-              href={`/settings/${w.id}`}
-              className="flex items-center gap-3 p-3 rounded-xl border border-surface-700 hover:border-surface-600 hover:bg-surface-750 transition-all">
-              <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-xs font-bold text-indigo-400 flex-shrink-0">
-                {w.name.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-200 truncate">{w.name}</p>
-                <p className="text-xs text-gray-500 truncate flex items-center gap-1">
-                  {w.hasToken
-                    ? <><CheckCheck className="w-3 h-3 text-emerald-400" />{w.adAccountName ?? 'Conta configurada'}</>
-                    : <><AlertCircle className="w-3 h-3 text-orange-400" />Sem token configurado</>
-                  }
-                </p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-600 flex-shrink-0" />
-            </Link>
-          ))}
+        <h2 className="text-sm font-semibold text-gray-300">Nome do Workspace</h2>
+        <div className="flex gap-2">
+          <input
+            value={workspaceName}
+            onChange={e => setWorkspaceName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') saveWorkspaceName() }}
+            placeholder="Nome do workspace"
+            className="flex-1 rounded-lg bg-surface-750 border border-surface-600 text-gray-100 placeholder-gray-600 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+          <Button variant="secondary" onClick={saveWorkspaceName} loading={savingName} size="sm">
+            Salvar
+          </Button>
         </div>
       </div>
 
@@ -125,7 +157,7 @@ export default function SettingsPage() {
             <input
               type={showToken ? 'text' : 'password'}
               value={token}
-              onChange={(e) => setToken(e.target.value)}
+              onChange={e => setToken(e.target.value)}
               placeholder="EAAxxxxxxxxxxxxx..."
               className="w-full rounded-lg bg-surface-750 border border-surface-600 text-gray-100 placeholder-gray-600 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 pr-10"
             />
@@ -146,30 +178,12 @@ export default function SettingsPage() {
         )}
       </div>
 
-      {/* OpenAI Key */}
-      <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-gray-300">OpenAI API Key <span className="text-gray-600 font-normal">(YouTube Ops)</span></h2>
-        <div className="relative">
-          <input
-            type={showOpenaiKey ? 'text' : 'password'}
-            value={openaiKey}
-            onChange={(e) => setOpenaiKey(e.target.value)}
-            placeholder="sk-proj-xxxxxxxxxxxxx"
-            className="w-full rounded-lg bg-surface-750 border border-surface-600 text-gray-100 placeholder-gray-600 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 pr-10"
-          />
-          <button onClick={() => setShowOpenaiKey(!showOpenaiKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
-            {showOpenaiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          </button>
-        </div>
-        <p className="text-xs text-gray-600">Usada para transcrição (Whisper) e geração de conteúdo (GPT-4o)</p>
-      </div>
-
       {/* Page ID */}
       <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5 space-y-3">
         <h2 className="text-sm font-semibold text-gray-300">Page ID padrão</h2>
         <input
           value={pageId}
-          onChange={(e) => setPageId(e.target.value)}
+          onChange={e => setPageId(e.target.value)}
           placeholder="ID numérico da página do Facebook"
           className="w-full rounded-lg bg-surface-750 border border-surface-600 text-gray-100 placeholder-gray-600 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
@@ -193,7 +207,7 @@ export default function SettingsPage() {
 
         {accounts.length > 0 && (
           <div className="space-y-1.5">
-            {accounts.map((a) => (
+            {accounts.map(a => (
               <button
                 key={a.id}
                 onClick={() => { setSelectedAccount(a.id); setSelectedAccountName(a.name) }}
@@ -216,6 +230,21 @@ export default function SettingsPage() {
       <Button onClick={save} loading={saving} size="lg" className="w-full">
         Salvar configurações
       </Button>
+
+      {/* Delete workspace */}
+      {workspaceId !== 'default' && (
+        <div className="bg-surface-800 border border-red-500/20 rounded-2xl p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-red-400">Zona de perigo</h2>
+          <p className="text-xs text-gray-500">Ao deletar este workspace, todas as suas configurações serão perdidas permanentemente.</p>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-sm text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50">
+            <Trash2 className="w-4 h-4" />
+            {deleting ? 'Deletando...' : 'Deletar workspace'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

@@ -47,7 +47,7 @@ async function reencodeAudio(inputPath: string, outputPath: string): Promise<voi
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const settings = await prisma.settings.findUnique({ where: { id: 'default' } })
+  const settings = await prisma.workspace.findUnique({ where: { id: 'default' } })
   if (!settings?.openaiKey) {
     return NextResponse.json(
       { success: false, error: 'OpenAI API Key não configurada. Vá em Configurações → YouTube Ops.' },
