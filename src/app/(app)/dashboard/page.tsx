@@ -7,7 +7,12 @@ import {
   Calendar, ChevronDown, Check, Loader2, GripVertical,
   Plus, X, ArrowUpDown, ArrowUp, ArrowDown, LayoutDashboard,
   TableProperties, AlertCircle, Settings2, Search,
+  AlertTriangle, Download, TrendingDown, Minus,
 } from 'lucide-react'
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip as RechartsTooltip, ResponsiveContainer, Legend,
+} from 'recharts'
 import toast from 'react-hot-toast'
 import type { CampaignInsight } from '@/services/meta/insights'
 
@@ -15,6 +20,7 @@ import type { CampaignInsight } from '@/services/meta/insights'
 interface AggregatedData {
   spend: number; impressions: number; reach: number; clicks: number
   purchases: number; leads: number; initiateCheckout: number
+  revenue: number; roas: number; landingPageViews: number; connectRate: number
   cpm: number; ctr: number; frequency: number
   purchaseRate: number; leadRate: number
   cpc: number; costPerLead: number; costPerPurchase: number
@@ -51,16 +57,30 @@ const ALL_METRICS: MetricDef[] = [
   { id: 'costPerPurchase',         label: 'Custo por Compra',             format: 'currency', icon: DollarSign,       color: 'text-lime-400',    getValue: d => d.costPerPurchase         },
   { id: 'initiateCheckout',        label: 'Initiate Checkout',            format: 'number',   icon: ShoppingCart,     color: 'text-fuchsia-400', getValue: d => d.initiateCheckout        },
   { id: 'costPerInitiateCheckout', label: 'Custo por Initiate Checkout',  format: 'currency', icon: DollarSign,       color: 'text-purple-400',  getValue: d => d.costPerInitiateCheckout },
+  { id: 'revenue',          label: 'Receita',               format: 'currency', icon: TrendingUp,       color: 'text-green-400',   getValue: d => d.revenue          },
+  { id: 'roas',             label: 'ROAS',                  format: 'decimal',  icon: TrendingUp,       color: 'text-emerald-300', getValue: d => d.roas             },
+  { id: 'landingPageViews', label: 'Visualiz. Landing Page',format: 'number',   icon: Eye,              color: 'text-blue-300',    getValue: d => d.landingPageViews },
+  { id: 'connectRate',      label: 'Taxa de Conexão',       format: 'percent',  icon: Activity,         color: 'text-cyan-300',    getValue: d => d.connectRate      },
 ]
 
 const DEFAULT_IDS = ['spend', 'purchases', 'purchaseRate', 'leads', 'leadRate', 'cpm', 'ctr', 'frequency', 'reach', 'impressions']
 const STORAGE_KEY = 'dash-metric-order'
+const LABELS_KEY  = 'dash-metric-labels'
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function toYMD(d: Date) { return d.toISOString().split('T')[0] }
 function today() { return toYMD(new Date()) }
 function daysAgo(n: number) { const d = new Date(); d.setDate(d.getDate() - n); return toYMD(d) }
 function startOfMonth() { const d = new Date(); d.setDate(1); return toYMD(d) }
+
+function getPreviousPeriod(start: string, end: string): { start: string; end: string } {
+  const s    = new Date(start + 'T00:00:00')
+  const e    = new Date(end   + 'T00:00:00')
+  const days = Math.round((e.getTime() - s.getTime()) / 86400000) + 1
+  const prevEnd   = new Date(s.getTime() - 86400000)
+  const prevStart = new Date(prevEnd.getTime() - (days - 1) * 86400000)
+  return { start: toYMD(prevStart), end: toYMD(prevEnd) }
+}
 
 const PRESETS = [
   { label: 'Hoje',      start: () => today(),        end: () => today()   },
@@ -86,6 +106,40 @@ function formatValue(value: number, format: MetricDef['format']) {
   return fmtNumber(value)
 }
 
+// ── Export CSV ────────────────────────────────────────────────────────────────
+function exportCSV(rows: CampaignInsight[]) {
+  const headers = ['Data','Campanha','Investido','Compras','Tx Conv. Compra','Leads','Tx Conv. Lead','CPM','CTR','Frequência','Alcance','Impressões','Receita','ROAS','LP Views','Taxa Conexão']
+  const escape  = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`
+  const lines   = [
+    headers.join(','),
+    ...rows.map(r => [
+      r.date ?? '',
+      r.campaignName,
+      r.spend.toFixed(2),
+      r.purchases,
+      r.purchaseRate.toFixed(2),
+      r.leads,
+      r.leadRate.toFixed(2),
+      r.cpm.toFixed(2),
+      r.ctr.toFixed(2),
+      r.frequency.toFixed(2),
+      r.reach,
+      r.impressions,
+      r.revenue.toFixed(2),
+      r.roas.toFixed(2),
+      r.landingPageViews,
+      r.connectRate.toFixed(2),
+    ].map(escape).join(',')),
+  ]
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `dashboard-${new Date().toISOString().split('T')[0]}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 // ── Aggregation ───────────────────────────────────────────────────────────────
 function aggregate(rows: CampaignInsight[]): AggregatedData | null {
   if (!rows.length) return null
@@ -96,11 +150,18 @@ function aggregate(rows: CampaignInsight[]): AggregatedData | null {
   const purchases        = rows.reduce((s, r) => s + r.purchases,        0)
   const leads            = rows.reduce((s, r) => s + r.leads,            0)
   const initiateCheckout = rows.reduce((s, r) => s + r.initiateCheckout, 0)
+  const revenue          = rows.reduce((s, r) => s + r.revenue,          0)
+  const landingPageViews = rows.reduce((s, r) => s + r.landingPageViews, 0)
   const frequency        = impressions > 0
     ? rows.reduce((s, r) => s + r.frequency * r.impressions, 0) / impressions
     : 0
   return {
-    spend, impressions, reach, clicks, purchases, leads, initiateCheckout, frequency,
+    spend, impressions, reach, clicks, purchases, leads, initiateCheckout,
+    revenue,
+    roas:            spend > 0 ? revenue / spend : 0,
+    landingPageViews,
+    connectRate:     clicks > 0 ? (landingPageViews / clicks) * 100 : 0,
+    frequency,
     cpm:                     impressions > 0      ? (spend / impressions) * 1000  : 0,
     ctr:                     impressions > 0      ? (clicks / impressions) * 100  : 0,
     purchaseRate:            clicks > 0           ? (purchases / clicks) * 100    : 0,
@@ -262,17 +323,44 @@ function CampaignFilter({
 function MetricCard({
   metric, value, isDragging, isOver,
   onDragStart, onDragOver, onDrop, onDragEnd, onRemove,
+  customLabel, onLabelChange, metricId, prevValue,
 }: {
-  metric:      MetricDef
-  value:       number
-  isDragging:  boolean
-  isOver:      boolean
-  onDragStart: () => void
-  onDragOver:  (e: React.DragEvent) => void
-  onDrop:      () => void
-  onDragEnd:   () => void
-  onRemove:    () => void
+  metric:        MetricDef
+  value:         number
+  isDragging:    boolean
+  isOver:        boolean
+  onDragStart:   () => void
+  onDragOver:    (e: React.DragEvent) => void
+  onDrop:        () => void
+  onDragEnd:     () => void
+  onRemove:      () => void
+  customLabel?:  string
+  onLabelChange: (id: string, label: string) => void
+  metricId:      string
+  prevValue?:    number
 }) {
+  const [editing,   setEditing]   = useState(false)
+  const [editValue, setEditValue] = useState(customLabel ?? metric.label)
+
+  const displayLabel = customLabel || metric.label
+
+  const handleLabelSubmit = () => {
+    setEditing(false)
+    if (editValue.trim()) onLabelChange(metricId, editValue.trim())
+  }
+
+  // Delta vs previous period
+  const showDelta = prevValue !== undefined && prevValue !== null
+  const delta     = showDelta ? value - prevValue! : 0
+  const deltaPct  = showDelta && prevValue! !== 0 ? (delta / prevValue!) * 100 : 0
+
+  // Frequency alert: warn when >= 3
+  const isFrequency = metricId === 'frequency'
+  const freqHigh    = isFrequency && value >= 3
+  const freqColor   = isFrequency
+    ? value >= 4 ? 'text-red-400' : value >= 3 ? 'text-orange-400' : 'text-gray-100'
+    : 'text-gray-100'
+
   const Icon = metric.icon
   return (
     <div
@@ -299,14 +387,49 @@ function MetricCard({
       </button>
 
       <div className="mt-1 flex flex-col gap-3">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center bg-surface-750 ${metric.color}`}>
-          <Icon className="w-4.5 h-4.5" />
+        <div className="flex items-center gap-2">
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center bg-surface-750 ${metric.color}`}>
+            <Icon className="w-4.5 h-4.5" />
+          </div>
+          {freqHigh && (
+            <span title="Frequência alta — considere pausar ou renovar criativos">
+              <AlertTriangle className="w-4 h-4 text-orange-400" />
+            </span>
+          )}
         </div>
         <div>
-          <p className="text-xs text-gray-500 font-medium mb-1">{metric.label}</p>
-          <p className="text-2xl font-bold text-gray-100 leading-none">
+          {editing ? (
+            <input
+              autoFocus
+              value={editValue}
+              onChange={e => setEditValue(e.target.value)}
+              onBlur={handleLabelSubmit}
+              onKeyDown={e => { if (e.key === 'Enter') handleLabelSubmit(); if (e.key === 'Escape') setEditing(false) }}
+              className="text-xs font-medium text-indigo-300 bg-transparent border-b border-indigo-500 outline-none w-full mb-1"
+            />
+          ) : (
+            <p
+              className="text-xs text-gray-500 font-medium mb-1 cursor-pointer hover:text-indigo-400 transition-colors"
+              onDoubleClick={() => { setEditValue(displayLabel); setEditing(true) }}
+              title="Clique duplo para editar o rótulo">
+              {displayLabel}
+            </p>
+          )}
+          <p className={`text-2xl font-bold leading-none ${freqColor}`}>
             {formatValue(value, metric.format)}
           </p>
+          {showDelta && prevValue! !== 0 && (
+            <div className={`flex items-center gap-1 mt-1.5 text-xs font-medium ${
+              delta > 0 ? 'text-emerald-400' : delta < 0 ? 'text-red-400' : 'text-gray-500'
+            }`}>
+              {delta > 0
+                ? <TrendingUp className="w-3 h-3" />
+                : delta < 0
+                ? <TrendingDown className="w-3 h-3" />
+                : <Minus className="w-3 h-3" />}
+              {delta > 0 ? '+' : ''}{deltaPct.toFixed(1)}%
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -384,6 +507,167 @@ function Th({ label, sortKey, currentKey, dir, onSort }: {
   )
 }
 
+// ── FunnelSection ─────────────────────────────────────────────────────────────
+function FunnelSection({ data }: { data: AggregatedData }) {
+  const steps = [
+    { label: 'Impressões',      value: data.impressions,      color: 'bg-indigo-500/20 text-indigo-300' },
+    { label: 'Cliques',         value: data.clicks,           color: 'bg-blue-500/20 text-blue-300' },
+    { label: 'LP Views',        value: data.landingPageViews, color: 'bg-cyan-500/20 text-cyan-300' },
+    { label: 'Initiate CK',     value: data.initiateCheckout, color: 'bg-violet-500/20 text-violet-300' },
+    { label: 'Compras',         value: data.purchases,        color: 'bg-emerald-500/20 text-emerald-300' },
+  ]
+  const max = steps[0].value || 1
+  return (
+    <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5">
+      <h3 className="text-sm font-semibold text-gray-300 mb-4">Funil de Conversão</h3>
+      <div className="space-y-3">
+        {steps.map((step, i) => {
+          const pct = (step.value / max) * 100
+          const rate = i > 0 && steps[i - 1].value > 0
+            ? ((step.value / steps[i - 1].value) * 100).toFixed(1) + '%'
+            : null
+          return (
+            <div key={step.label}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-400">{step.label}</span>
+                <div className="flex items-center gap-3">
+                  {rate && <span className="text-xs text-gray-500">{rate}</span>}
+                  <span className="text-xs font-medium text-gray-200">{fmtNumber(step.value)}</span>
+                </div>
+              </div>
+              <div className="h-2 bg-surface-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${step.color.split(' ')[0].replace('/20', '')}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── TopCampaigns ──────────────────────────────────────────────────────────────
+function TopCampaigns({ rows }: { rows: CampaignInsight[] }) {
+  const top = [...rows]
+    .sort((a, b) => b.spend - a.spend)
+    .slice(0, 5)
+  if (!top.length) return null
+  const maxSpend = top[0].spend || 1
+  return (
+    <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5">
+      <h3 className="text-sm font-semibold text-gray-300 mb-4">Top Campanhas por Investimento</h3>
+      <div className="space-y-3">
+        {top.map((r, i) => (
+          <div key={r.campaignId}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-gray-300 truncate max-w-[200px]" title={r.campaignName}>
+                {i + 1}. {r.campaignName}
+              </span>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <span className="text-xs text-gray-500">{r.purchases} compras</span>
+                <span className="text-xs font-medium text-emerald-400">{fmtCurrency(r.spend)}</span>
+              </div>
+            </div>
+            <div className="h-1.5 bg-surface-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-indigo-500 rounded-full transition-all"
+                style={{ width: `${(r.spend / maxSpend) * 100}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── EvolutionChart ────────────────────────────────────────────────────────────
+type ChartMetric = { key: keyof CampaignInsight; label: string; color: string }
+
+const CHART_METRICS: ChartMetric[] = [
+  { key: 'spend',     label: 'Investido',  color: '#34d399' },
+  { key: 'purchases', label: 'Compras',    color: '#60a5fa' },
+  { key: 'leads',     label: 'Leads',      color: '#a78bfa' },
+  { key: 'revenue',   label: 'Receita',    color: '#4ade80' },
+]
+
+function EvolutionChart({ daily }: { daily: CampaignInsight[] }) {
+  const [activeMetrics, setActiveMetrics] = useState<string[]>(['spend', 'purchases'])
+
+  // Aggregate by date
+  const byDate = daily.reduce<Record<string, Record<string, number>>>((acc, row) => {
+    const d = row.date ?? 'unknown'
+    if (!acc[d]) acc[d] = {}
+    for (const m of CHART_METRICS) {
+      acc[d][m.key] = (acc[d][m.key] ?? 0) + (row[m.key] as number)
+    }
+    return acc
+  }, {})
+
+  const chartData = Object.entries(byDate)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, vals]) => ({
+      date: new Date(date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      ...vals,
+    }))
+
+  if (!chartData.length) return null
+
+  const toggle = (key: string) =>
+    setActiveMetrics(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
+
+  return (
+    <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-gray-300">Evolução Diária</h3>
+        <div className="flex gap-2">
+          {CHART_METRICS.map(m => (
+            <button
+              key={m.key}
+              onClick={() => toggle(m.key as string)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors border ${
+                activeMetrics.includes(m.key as string)
+                  ? 'bg-surface-700 text-gray-200 border-surface-600'
+                  : 'bg-transparent text-gray-500 border-transparent hover:text-gray-400'
+              }`}
+              style={activeMetrics.includes(m.key as string) ? { borderColor: m.color, color: m.color } : {}}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={280}>
+        <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+          <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 11 }} />
+          <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} width={60} />
+          <RechartsTooltip
+            contentStyle={{ background: '#1e2433', border: '1px solid #374151', borderRadius: 8 }}
+            labelStyle={{ color: '#d1d5db' }}
+            itemStyle={{ color: '#9ca3af' }}
+          />
+          <Legend wrapperStyle={{ color: '#9ca3af', fontSize: 12 }} />
+          {CHART_METRICS.filter(m => activeMetrics.includes(m.key as string)).map(m => (
+            <Line
+              key={m.key}
+              type="monotone"
+              dataKey={m.key as string}
+              name={m.label}
+              stroke={m.color}
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4 }}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   // ── Tabs & filters ─────────────────────────────────────────────────────────
@@ -395,8 +679,9 @@ export default function DashboardPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   // ── Data ───────────────────────────────────────────────────────────────────
-  const [insights,   setInsights]   = useState<CampaignInsight[]>([])
-  const [daily,      setDaily]      = useState<CampaignInsight[]>([])
+  const [insights,     setInsights]     = useState<CampaignInsight[]>([])
+  const [daily,        setDaily]        = useState<CampaignInsight[]>([])
+  const [prevOverview, setPrevOverview] = useState<AggregatedData | null>(null)
   const [loading,    setLoading]    = useState(false)
   const [error,      setError]      = useState<string | null>(null)
 
@@ -406,11 +691,29 @@ export default function DashboardPage() {
   const [draggedId,  setDraggedId]  = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
 
+  // ── Custom labels (persisted in localStorage) ─────────────────────────────
+  const [customLabels, setCustomLabels] = useState<Record<string, string>>({})
+
   // ── Daily table sort ───────────────────────────────────────────────────────
   const [sortKey,  setSortKey]  = useState('date')
   const [sortDir,  setSortDir]  = useState<SortDir>('desc')
 
-  // ── Load metric order from localStorage ────────────────────────────────────
+  // ── Load metric order + labels from localStorage ───────────────────────────
+  useEffect(() => {
+    const savedLabels = localStorage.getItem(LABELS_KEY)
+    if (savedLabels) {
+      try { setCustomLabels(JSON.parse(savedLabels) as Record<string, string>) } catch { /* ignore */ }
+    }
+  }, [])
+
+  const updateCustomLabel = (metricId: string, label: string) => {
+    setCustomLabels(prev => {
+      const next = { ...prev, [metricId]: label }
+      localStorage.setItem(LABELS_KEY, JSON.stringify(next))
+      return next
+    })
+  }
+
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) {
@@ -441,20 +744,28 @@ export default function DashboardPage() {
     setLoading(true)
     setError(null)
     try {
+      const prev   = getPreviousPeriod(startDate, endDate)
       const params = new URLSearchParams({
         startDate,
         endDate,
         ...(selectedIds.length ? { campaignIds: selectedIds.join(',') } : {}),
       })
+      const prevParams = new URLSearchParams({
+        startDate: prev.start,
+        endDate:   prev.end,
+        ...(selectedIds.length ? { campaignIds: selectedIds.join(',') } : {}),
+      })
 
-      const [overviewRes, dailyRes] = await Promise.all([
+      const [overviewRes, dailyRes, prevRes] = await Promise.all([
         fetch(`/api/meta/insights?${params}`),
         fetch(`/api/meta/insights?${params}&daily=true`),
+        fetch(`/api/meta/insights?${prevParams}`),
       ])
 
-      const [overviewJson, dailyJson] = await Promise.all([
+      const [overviewJson, dailyJson, prevJson] = await Promise.all([
         overviewRes.json(),
         dailyRes.json(),
+        prevRes.json(),
       ])
 
       if (!overviewJson.success) throw new Error(overviewJson.error)
@@ -462,6 +773,9 @@ export default function DashboardPage() {
 
       setInsights(overviewJson.data)
       setDaily(dailyJson.data)
+      if (prevJson.success) {
+        setPrevOverview(aggregate(prevJson.data))
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Erro ao carregar dados'
       setError(msg)
@@ -639,7 +953,11 @@ export default function DashboardPage() {
                     <MetricCard
                       key={metric.id}
                       metric={metric}
+                      metricId={metric.id}
                       value={aggData ? metric.getValue(aggData) : 0}
+                      prevValue={prevOverview ? metric.getValue(prevOverview) : undefined}
+                      customLabel={customLabels[metric.id]}
+                      onLabelChange={updateCustomLabel}
                       isDragging={draggedId === metric.id}
                       isOver={dragOverId === metric.id && draggedId !== metric.id}
                       onDragStart={() => handleDragStart(metric.id)}
@@ -673,8 +991,16 @@ export default function DashboardPage() {
                 {visibleMetrics.length > 0 && (
                   <p className="text-[11px] text-gray-600 flex items-center gap-1.5">
                     <Settings2 className="w-3 h-3" />
-                    Segure e arraste os cards para reordenar · clique no × para remover
+                    Segure e arraste os cards para reordenar · clique no × para remover · clique duplo no rótulo para editar
                   </p>
+                )}
+
+                {/* Funnel + Top campaigns */}
+                {aggData && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-2">
+                    <FunnelSection data={aggData} />
+                    <TopCampaigns rows={insights} />
+                  </div>
                 )}
               </>
             )}
@@ -685,6 +1011,23 @@ export default function DashboardPage() {
         {/* TAB: DESEMPENHO DIÁRIO                                            */}
         {/* ══════════════════════════════════════════════════════════════════ */}
         {tab === 'daily' && (
+          <div className="space-y-4">
+            {/* Evolution chart */}
+            {!loading && daily.length > 0 && <EvolutionChart daily={daily} />}
+
+            {/* Export CSV button */}
+            {!loading && sortedDaily.length > 0 && (
+              <div className="flex justify-end">
+                <button
+                  onClick={() => exportCSV(sortedDaily)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-800 border border-surface-700
+                    text-sm text-gray-300 hover:border-surface-600 hover:text-gray-200 transition-colors">
+                  <Download className="w-4 h-4" />
+                  Exportar CSV
+                </button>
+              </div>
+            )}
+
           <div className="bg-surface-800 border border-surface-700 rounded-2xl overflow-hidden">
             {loading ? (
               <div className="flex items-center justify-center py-16">
@@ -766,6 +1109,7 @@ export default function DashboardPage() {
                 </table>
               </div>
             )}
+          </div>
           </div>
         )}
       </div>
