@@ -14,9 +14,11 @@ import type { CampaignInsight } from '@/services/meta/insights'
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface AggregatedData {
   spend: number; impressions: number; reach: number; clicks: number
-  purchases: number; leads: number; cpm: number; ctr: number
-  frequency: number; purchaseRate: number; leadRate: number
+  purchases: number; leads: number; initiateCheckout: number
+  cpm: number; ctr: number; frequency: number
+  purchaseRate: number; leadRate: number
   cpc: number; costPerLead: number; costPerPurchase: number
+  costPerInitiateCheckout: number
 }
 
 interface MetricDef {
@@ -46,7 +48,9 @@ const ALL_METRICS: MetricDef[] = [
   { id: 'clicks',          label: 'Cliques',                format: 'number',   icon: MousePointerClick,color: 'text-sky-400',     getValue: d => d.clicks          },
   { id: 'cpc',             label: 'CPC',                    format: 'currency', icon: DollarSign,       color: 'text-amber-400',   getValue: d => d.cpc             },
   { id: 'costPerLead',     label: 'Custo por Lead',         format: 'currency', icon: DollarSign,       color: 'text-rose-400',    getValue: d => d.costPerLead     },
-  { id: 'costPerPurchase', label: 'Custo por Compra',       format: 'currency', icon: DollarSign,       color: 'text-lime-400',    getValue: d => d.costPerPurchase },
+  { id: 'costPerPurchase',         label: 'Custo por Compra',             format: 'currency', icon: DollarSign,       color: 'text-lime-400',    getValue: d => d.costPerPurchase         },
+  { id: 'initiateCheckout',        label: 'Initiate Checkout',            format: 'number',   icon: ShoppingCart,     color: 'text-fuchsia-400', getValue: d => d.initiateCheckout        },
+  { id: 'costPerInitiateCheckout', label: 'Custo por Initiate Checkout',  format: 'currency', icon: DollarSign,       color: 'text-purple-400',  getValue: d => d.costPerInitiateCheckout },
 ]
 
 const DEFAULT_IDS = ['spend', 'purchases', 'purchaseRate', 'leads', 'leadRate', 'cpm', 'ctr', 'frequency', 'reach', 'impressions']
@@ -89,20 +93,22 @@ function aggregate(rows: CampaignInsight[]): AggregatedData | null {
   const impressions = rows.reduce((s, r) => s + r.impressions, 0)
   const reach       = rows.reduce((s, r) => s + r.reach,       0)
   const clicks      = rows.reduce((s, r) => s + r.clicks,      0)
-  const purchases   = rows.reduce((s, r) => s + r.purchases,   0)
-  const leads       = rows.reduce((s, r) => s + r.leads,       0)
-  const frequency   = impressions > 0
+  const purchases        = rows.reduce((s, r) => s + r.purchases,        0)
+  const leads            = rows.reduce((s, r) => s + r.leads,            0)
+  const initiateCheckout = rows.reduce((s, r) => s + r.initiateCheckout, 0)
+  const frequency        = impressions > 0
     ? rows.reduce((s, r) => s + r.frequency * r.impressions, 0) / impressions
     : 0
   return {
-    spend, impressions, reach, clicks, purchases, leads, frequency,
-    cpm:             impressions > 0 ? (spend / impressions) * 1000 : 0,
-    ctr:             impressions > 0 ? (clicks / impressions) * 100 : 0,
-    purchaseRate:    clicks > 0 ? (purchases / clicks) * 100 : 0,
-    leadRate:        clicks > 0 ? (leads / clicks) * 100 : 0,
-    cpc:             clicks > 0 ? spend / clicks : 0,
-    costPerLead:     leads > 0  ? spend / leads  : 0,
-    costPerPurchase: purchases > 0 ? spend / purchases : 0,
+    spend, impressions, reach, clicks, purchases, leads, initiateCheckout, frequency,
+    cpm:                     impressions > 0      ? (spend / impressions) * 1000  : 0,
+    ctr:                     impressions > 0      ? (clicks / impressions) * 100  : 0,
+    purchaseRate:            clicks > 0           ? (purchases / clicks) * 100    : 0,
+    leadRate:                clicks > 0           ? (leads / clicks) * 100        : 0,
+    cpc:                     clicks > 0           ? spend / clicks                : 0,
+    costPerLead:             leads > 0            ? spend / leads                 : 0,
+    costPerPurchase:         purchases > 0        ? spend / purchases             : 0,
+    costPerInitiateCheckout: initiateCheckout > 0 ? spend / initiateCheckout      : 0,
   }
 }
 

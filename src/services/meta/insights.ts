@@ -24,13 +24,15 @@ export interface CampaignInsight {
   ctr:          number   // as percentage (e.g. 2.5 = 2.5%)
   cpm:          number   // in account currency
   frequency:    number
-  purchases:    number
-  leads:        number
-  purchaseRate: number   // purchases / clicks * 100
-  leadRate:     number   // leads / clicks * 100
-  cpc:          number   // spend / clicks
-  costPerLead:      number  // spend / leads
-  costPerPurchase:  number  // spend / purchases
+  purchases:        number
+  leads:            number
+  initiateCheckout: number
+  purchaseRate:     number   // purchases / clicks * 100
+  leadRate:         number   // leads / clicks * 100
+  cpc:                     number   // spend / clicks
+  costPerLead:             number   // spend / leads
+  costPerPurchase:         number   // spend / purchases
+  costPerInitiateCheckout: number   // spend / initiateCheckout
 }
 
 export interface MetaCampaign {
@@ -121,6 +123,10 @@ export async function getInsights(params: InsightsParams): Promise<CampaignInsig
       'offsite_conversion.fb_pixel_lead',
       'onsite_conversion.lead_grouped',
     ])
+    const initiateCheckout = sumActions(actions, [
+      'initiate_checkout',
+      'offsite_conversion.fb_pixel_initiate_checkout',
+    ])
 
     const spend       = parseFloat(row.spend       || '0')
     const impressions = parseInt(row.impressions   || '0')
@@ -143,11 +149,13 @@ export async function getInsights(params: InsightsParams): Promise<CampaignInsig
       frequency,
       purchases,
       leads,
-      purchaseRate:     clicks > 0 ? (purchases / clicks) * 100 : 0,
-      leadRate:         clicks > 0 ? (leads     / clicks) * 100 : 0,
-      cpc:              clicks > 0 ? spend / clicks       : 0,
-      costPerLead:      leads > 0  ? spend / leads        : 0,
-      costPerPurchase:  purchases > 0 ? spend / purchases : 0,
+      initiateCheckout,
+      purchaseRate:            clicks > 0          ? (purchases / clicks) * 100 : 0,
+      leadRate:                clicks > 0          ? (leads     / clicks) * 100 : 0,
+      cpc:                     clicks > 0          ? spend / clicks             : 0,
+      costPerLead:             leads > 0           ? spend / leads              : 0,
+      costPerPurchase:         purchases > 0       ? spend / purchases          : 0,
+      costPerInitiateCheckout: initiateCheckout > 0 ? spend / initiateCheckout  : 0,
     }
   })
 }
@@ -169,12 +177,13 @@ export async function getCampaignsList(): Promise<MetaCampaign[]> {
 export function aggregateInsights(rows: CampaignInsight[]) {
   if (!rows.length) return null
 
-  const spend       = rows.reduce((s, r) => s + r.spend,       0)
-  const impressions = rows.reduce((s, r) => s + r.impressions, 0)
-  const reach       = rows.reduce((s, r) => s + r.reach,       0)
-  const clicks      = rows.reduce((s, r) => s + r.clicks,      0)
-  const purchases   = rows.reduce((s, r) => s + r.purchases,   0)
-  const leads       = rows.reduce((s, r) => s + r.leads,       0)
+  const spend            = rows.reduce((s, r) => s + r.spend,            0)
+  const impressions      = rows.reduce((s, r) => s + r.impressions,      0)
+  const reach            = rows.reduce((s, r) => s + r.reach,            0)
+  const clicks           = rows.reduce((s, r) => s + r.clicks,           0)
+  const purchases        = rows.reduce((s, r) => s + r.purchases,        0)
+  const leads            = rows.reduce((s, r) => s + r.leads,            0)
+  const initiateCheckout = rows.reduce((s, r) => s + r.initiateCheckout, 0)
 
   // Weighted average for frequency (by impressions)
   const frequency = impressions > 0
@@ -188,13 +197,15 @@ export function aggregateInsights(rows: CampaignInsight[]) {
     clicks,
     purchases,
     leads,
-    cpm:             impressions > 0 ? (spend / impressions) * 1000 : 0,
-    ctr:             impressions > 0 ? (clicks / impressions) * 100 : 0,
+    initiateCheckout,
+    cpm:                     impressions > 0      ? (spend / impressions) * 1000  : 0,
+    ctr:                     impressions > 0      ? (clicks / impressions) * 100  : 0,
     frequency,
-    purchaseRate:    clicks > 0 ? (purchases / clicks) * 100 : 0,
-    leadRate:        clicks > 0 ? (leads     / clicks) * 100 : 0,
-    cpc:             clicks > 0 ? spend / clicks : 0,
-    costPerLead:     leads > 0  ? spend / leads  : 0,
-    costPerPurchase: purchases > 0 ? spend / purchases : 0,
+    purchaseRate:            clicks > 0           ? (purchases / clicks) * 100    : 0,
+    leadRate:                clicks > 0           ? (leads     / clicks) * 100    : 0,
+    cpc:                     clicks > 0           ? spend / clicks                : 0,
+    costPerLead:             leads > 0            ? spend / leads                 : 0,
+    costPerPurchase:         purchases > 0        ? spend / purchases             : 0,
+    costPerInitiateCheckout: initiateCheckout > 0 ? spend / initiateCheckout      : 0,
   }
 }
