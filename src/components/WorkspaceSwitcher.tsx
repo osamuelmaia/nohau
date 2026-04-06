@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { ChevronDown, Plus, Check, LayoutDashboard, Settings } from 'lucide-react'
+import { useSettingsDrawer } from '@/stores/settings-drawer'
 
 interface Workspace {
   id: string
@@ -13,12 +13,13 @@ interface Workspace {
 }
 
 export default function WorkspaceSwitcher({ currentId }: { currentId: string }) {
-  const [open, setOpen]           = useState(false)
+  const [open, setOpen]             = useState(false)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-  const [creating, setCreating]   = useState(false)
-  const [newName, setNewName]     = useState('')
-  const ref                       = useRef<HTMLDivElement>(null)
-  const router                    = useRouter()
+  const [creating, setCreating]     = useState(false)
+  const [newName, setNewName]       = useState('')
+  const ref                         = useRef<HTMLDivElement>(null)
+  const router                      = useRouter()
+  const { openDrawer }              = useSettingsDrawer()
 
   useEffect(() => {
     fetch('/api/workspaces').then(r => r.json()).then(j => {
@@ -88,13 +89,12 @@ export default function WorkspaceSwitcher({ currentId }: { currentId: string }) 
                   </div>
                   {w.id === currentId && <Check className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />}
                 </button>
-                <Link
-                  href={`/settings/${w.id}`}
-                  onClick={() => setOpen(false)}
+                <button
+                  onClick={() => { openDrawer(w.id, 'workspace'); setOpen(false) }}
                   className="p-1.5 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-surface-700 transition-colors flex-shrink-0"
                   title="Configurar workspace">
                   <Settings className="w-3.5 h-3.5" />
-                </Link>
+                </button>
               </div>
             ))}
           </div>

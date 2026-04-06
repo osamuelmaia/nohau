@@ -1,5 +1,6 @@
 import { Toaster } from 'react-hot-toast'
 import NavHeader from '@/components/NavHeader'
+import SettingsDrawer from '@/components/SettingsDrawer'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -7,6 +8,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <NavHeader />
 
       <main className="flex-1">{children}</main>
+
+      <SettingsDrawer />
 
       <Toaster
         position="bottom-right"

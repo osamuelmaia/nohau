@@ -2,16 +2,18 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Zap, Youtube, Megaphone, ChartNoAxesCombined, Scissors, PenLine, LayoutDashboard, LogOut } from 'lucide-react'
+import { Zap, Youtube, Megaphone, ChartNoAxesCombined, Scissors, PenLine, LayoutDashboard, LogOut, Settings } from 'lucide-react'
 import WorkspaceSwitcher from '@/components/WorkspaceSwitcher'
+import { useSettingsDrawer } from '@/stores/settings-drawer'
+import type { DrawerSection } from '@/stores/settings-drawer'
 
 const NAV = [
-  { href: '/dashboard', label: 'Dashboard',   icon: LayoutDashboard,     match: (p: string) => p.startsWith('/dashboard') || p === '/',                          settings: '/settings' },
-  { href: '/youtube',   label: 'YouTube Ops', icon: Youtube,             match: (p: string) => p.startsWith('/youtube'),                                          settings: '/settings/youtube' },
-  { href: '/campaigns', label: 'Campanhas',   icon: Megaphone,           match: (p: string) => p.startsWith('/campaigns') || p.startsWith('/settings') && !p.includes('youtube'), settings: '/settings' },
-  { href: '/audit',     label: 'Webanalisis', icon: ChartNoAxesCombined, match: (p: string) => p.startsWith('/audit'),                                            settings: '/settings' },
-  { href: '/cliper',    label: 'Cliper',      icon: Scissors,            match: (p: string) => p.startsWith('/cliper'),                                           settings: '/settings' },
-  { href: '/copy',      label: 'Copy Agent',  icon: PenLine,             match: (p: string) => p.startsWith('/copy'),                                             settings: '/settings' },
+  { href: '/dashboard', label: 'Dashboard',   icon: LayoutDashboard,     match: (p: string) => p.startsWith('/dashboard') || p === '/', section: 'meta' as DrawerSection },
+  { href: '/youtube',   label: 'YouTube Ops', icon: Youtube,             match: (p: string) => p.startsWith('/youtube'),               section: 'youtube' as DrawerSection },
+  { href: '/campaigns', label: 'Campanhas',   icon: Megaphone,           match: (p: string) => p.startsWith('/campaigns'),             section: 'meta' as DrawerSection },
+  { href: '/audit',     label: 'Webanalisis', icon: ChartNoAxesCombined, match: (p: string) => p.startsWith('/audit'),                 section: 'meta' as DrawerSection },
+  { href: '/cliper',    label: 'Cliper',       icon: Scissors,            match: (p: string) => p.startsWith('/cliper'),               section: 'youtube' as DrawerSection },
+  { href: '/copy',      label: 'Copy Agent',  icon: PenLine,             match: (p: string) => p.startsWith('/copy'),                  section: 'youtube' as DrawerSection },
 ]
 
 async function handleLogout() {
@@ -22,9 +24,14 @@ async function handleLogout() {
 export default function NavHeader() {
   const path    = usePathname()
   const active  = NAV.find(n => n.match(path)) ?? NAV[0]
+  const { openDrawer } = useSettingsDrawer()
 
   const workspaceMatch = path.match(/^\/dashboard\/([^/]+)/)
-  const workspaceId    = workspaceMatch?.[1] ?? null
+  const workspaceId    = workspaceMatch?.[1] ?? 'default'
+
+  const handleSettings = () => {
+    openDrawer(workspaceId, active.section)
+  }
 
   return (
     <header className="flex items-center justify-between px-6 py-3 bg-surface-900 border-b border-surface-700 sticky top-0 z-40">
@@ -37,7 +44,7 @@ export default function NavHeader() {
           <span className="font-bold text-sm text-white tracking-tight">Zima Ads</span>
         </Link>
         {/* Workspace switcher — only on dashboard routes */}
-        {workspaceId && <WorkspaceSwitcher currentId={workspaceId} />}
+        {workspaceMatch && <WorkspaceSwitcher currentId={workspaceId} />}
       </div>
 
       {/* Feature nav */}
@@ -55,6 +62,12 @@ export default function NavHeader() {
 
       {/* Right side actions */}
       <div className="flex items-center gap-1 flex-shrink-0">
+        <button
+          onClick={handleSettings}
+          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-200 transition-colors px-3 py-1.5 rounded-lg hover:bg-surface-700">
+          <Settings className="w-3.5 h-3.5" />
+          Config
+        </button>
         <button
           onClick={handleLogout}
           className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-500/10">
