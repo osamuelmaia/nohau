@@ -5,9 +5,9 @@ import { usePathname } from 'next/navigation'
 import { Zap, Settings, Youtube, Megaphone, ChartNoAxesCombined, Scissors, PenLine, LayoutDashboard } from 'lucide-react'
 
 const NAV = [
-  { href: '/',          label: 'Campanhas',   icon: Megaphone,           match: (p: string) => p === '/' || p.startsWith('/settings') && !p.includes('youtube'), settings: '/settings' },
-  { href: '/dashboard', label: 'Dashboard',   icon: LayoutDashboard,     match: (p: string) => p.startsWith('/dashboard'),                                        settings: '/settings' },
+  { href: '/dashboard', label: 'Dashboard',   icon: LayoutDashboard,     match: (p: string) => p.startsWith('/dashboard') || p === '/',                          settings: '/settings' },
   { href: '/youtube',   label: 'YouTube Ops', icon: Youtube,             match: (p: string) => p.startsWith('/youtube'),                                          settings: '/settings/youtube' },
+  { href: '/campaigns', label: 'Campanhas',   icon: Megaphone,           match: (p: string) => p.startsWith('/campaigns') || p.startsWith('/settings') && !p.includes('youtube'), settings: '/settings' },
   { href: '/audit',     label: 'Webanalisis', icon: ChartNoAxesCombined, match: (p: string) => p.startsWith('/audit'),                                            settings: '/settings' },
   { href: '/cliper',    label: 'Cliper',      icon: Scissors,            match: (p: string) => p.startsWith('/cliper'),                                           settings: '/settings' },
   { href: '/copy',      label: 'Copy Agent',  icon: PenLine,             match: (p: string) => p.startsWith('/copy'),                                             settings: '/settings' },
