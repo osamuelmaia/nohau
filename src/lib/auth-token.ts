@@ -4,8 +4,9 @@
 
 const encoder = new TextEncoder()
 
-function hexToUint8(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2)
+function hexToUint8(hex: string): Uint8Array<ArrayBuffer> {
+  const buf   = new ArrayBuffer(hex.length / 2)
+  const bytes = new Uint8Array(buf)
   for (let i = 0; i < bytes.length; i++)
     bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
   return bytes
@@ -30,7 +31,9 @@ async function importKey(secret: string): Promise<CryptoKey> {
 // Generate a signed session token: "timestamp:nonce:hmac"
 export async function makeToken(secret: string): Promise<string> {
   const ts    = Date.now().toString(36)
-  const nonce = uint8ToHex(crypto.getRandomValues(new Uint8Array(16)).buffer)
+  const randBuf = new ArrayBuffer(16)
+  crypto.getRandomValues(new Uint8Array(randBuf))
+  const nonce = uint8ToHex(randBuf)
   const payload = `${ts}:${nonce}`
   const key     = await importKey(secret)
   const sig     = await crypto.subtle.sign('HMAC', key, encoder.encode(payload))
