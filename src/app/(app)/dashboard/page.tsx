@@ -6,7 +6,7 @@ import {
   BarChart2, MousePointerClick, RefreshCw, Eye, Activity,
   Calendar, ChevronDown, Check, Loader2, GripVertical,
   Plus, X, ArrowUpDown, ArrowUp, ArrowDown, LayoutDashboard,
-  TableProperties, AlertCircle, Settings2,
+  TableProperties, AlertCircle, Settings2, Search,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import type { CampaignInsight } from '@/services/meta/insights'
@@ -115,11 +115,16 @@ function aggregate(rows: CampaignInsight[]): AggregatedData | null {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 // Campaign multi-select dropdown
+type StatusFilter = 'all' | 'active' | 'inactive'
+
 function CampaignFilter({
   campaigns, selected, onChange,
 }: { campaigns: MetaCampaign[]; selected: string[]; onChange: (ids: string[]) => void }) {
-  const [open, setOpen]   = useState(false)
-  const ref               = useRef<HTMLDivElement>(null)
+  const [open, setOpen]           = useState(false)
+  const [search, setSearch]       = useState('')
+  const [statusFilter, setStatus] = useState<StatusFilter>('all')
+  const ref                       = useRef<HTMLDivElement>(null)
+  const inputRef                  = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -129,14 +134,33 @@ function CampaignFilter({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 50)
+  }, [open])
+
   const toggle = (id: string) =>
     onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id])
+
+  const filtered = campaigns.filter(c => {
+    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase())
+    const matchStatus =
+      statusFilter === 'all'      ? true :
+      statusFilter === 'active'   ? c.status === 'ACTIVE' :
+                                    c.status !== 'ACTIVE'
+    return matchSearch && matchStatus
+  })
 
   const label = selected.length === 0
     ? 'Todas as campanhas'
     : selected.length === 1
       ? campaigns.find(c => c.id === selected[0])?.name ?? '1 selecionada'
       : `${selected.length} campanhas`
+
+  const STATUS_TABS: { id: StatusFilter; label: string }[] = [
+    { id: 'all',      label: 'Todas'   },
+    { id: 'active',   label: 'Ativas'  },
+    { id: 'inactive', label: 'Pausadas'},
+  ]
 
   return (
     <div ref={ref} className="relative">
@@ -149,13 +173,51 @@ function CampaignFilter({
       </button>
 
       {open && (
-        <div className="absolute top-full mt-2 left-0 z-50 w-72 bg-surface-800 border border-surface-700
+        <div className="absolute top-full mt-2 left-0 z-50 w-80 bg-surface-800 border border-surface-700
           rounded-2xl shadow-2xl shadow-black/40 overflow-hidden">
-          <div className="p-2 border-b border-surface-700 flex gap-2">
+
+          {/* Search input */}
+          <div className="p-2.5 border-b border-surface-700">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-700 border border-surface-600 focus-within:border-indigo-500/60 transition-colors">
+              <Search className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+              <input
+                ref={inputRef}
+                type="text"
+                placeholder="Buscar campanha..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="flex-1 bg-transparent text-sm text-gray-200 placeholder-gray-500 outline-none min-w-0"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="text-gray-500 hover:text-gray-300 transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Status tabs */}
+          <div className="flex gap-1 p-2 border-b border-surface-700">
+            {STATUS_TABS.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setStatus(tab.id)}
+                className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors ${
+                  statusFilter === tab.id
+                    ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
+                    : 'bg-surface-700 text-gray-400 hover:text-gray-200 hover:bg-surface-600 border border-transparent'
+                }`}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Select all / clear row */}
+          <div className="flex gap-1 p-2 border-b border-surface-700">
             <button
-              onClick={() => onChange(campaigns.map(c => c.id))}
+              onClick={() => onChange(filtered.map(c => c.id))}
               className="flex-1 text-xs py-1.5 rounded-lg bg-surface-700 text-gray-300 hover:bg-surface-600 transition-colors">
-              Todas
+              Selecionar visíveis
             </button>
             <button
               onClick={() => onChange([])}
@@ -163,11 +225,13 @@ function CampaignFilter({
               Limpar
             </button>
           </div>
-          <div className="max-h-60 overflow-y-auto py-1">
-            {campaigns.length === 0 && (
-              <p className="text-xs text-gray-500 px-4 py-3">Nenhuma campanha encontrada</p>
+
+          {/* Campaign list */}
+          <div className="max-h-56 overflow-y-auto py-1">
+            {filtered.length === 0 && (
+              <p className="text-xs text-gray-500 px-4 py-3 text-center">Nenhuma campanha encontrada</p>
             )}
-            {campaigns.map(c => (
+            {filtered.map(c => (
               <button
                 key={c.id}
                 onClick={() => toggle(c.id)}
