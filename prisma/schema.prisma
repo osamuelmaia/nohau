@@ -8,16 +8,18 @@ datasource db {
 }
 
 model Workspace {
-  id            String   @id @default(cuid())
-  name          String   @default("Dashboard Principal")
-  metaToken     String?
-  adAccountId   String?
-  adAccountName String?
-  pageId        String?
-  openaiKey     String?
-  youtubePrompt String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id               String   @id @default(cuid())
+  name             String   @default("Dashboard Principal")
+  metaToken        String?
+  adAccountId      String?
+  adAccountName    String?
+  pageId           String?
+  openaiKey        String?
+  youtubePrompt    String?
+  ga4PropertyId    String?
+  ga4ServiceAccount String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model YoutubeJob {

@@ -4,15 +4,17 @@ import { prisma } from '@/services/db/client'
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json()
-  const { name, metaToken, adAccountId, adAccountName, pageId } = body
+  const { name, metaToken, adAccountId, adAccountName, pageId, ga4PropertyId, ga4ServiceAccount } = body
   const workspace = await prisma.workspace.update({
     where: { id: params.id },
     data: {
-      ...(name        !== undefined && { name }),
-      ...(metaToken   !== undefined && { metaToken }),
-      ...(adAccountId !== undefined && { adAccountId }),
-      ...(adAccountName !== undefined && { adAccountName }),
-      ...(pageId      !== undefined && { pageId }),
+      ...(name              !== undefined && { name }),
+      ...(metaToken         !== undefined && { metaToken }),
+      ...(adAccountId       !== undefined && { adAccountId }),
+      ...(adAccountName     !== undefined && { adAccountName }),
+      ...(pageId            !== undefined && { pageId }),
+      ...(ga4PropertyId     !== undefined && { ga4PropertyId }),
+      ...(ga4ServiceAccount !== undefined && { ga4ServiceAccount }),
     },
   })
   return NextResponse.json({ success: true, data: workspace })

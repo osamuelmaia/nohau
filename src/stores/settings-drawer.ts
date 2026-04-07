@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type DrawerSection = 'meta' | 'youtube' | 'workspace'
+export type DrawerSection = 'meta' | 'youtube' | 'workspace' | 'analytics'
 
 interface State {
   open: boolean

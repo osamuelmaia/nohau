@@ -7,13 +7,14 @@ import {
   Calendar, ChevronDown, Check, Loader2, GripVertical,
   Plus, X, ArrowUpDown, ArrowUp, ArrowDown, LayoutDashboard,
   TableProperties, AlertCircle, Settings2, Search,
-  AlertTriangle, Download, TrendingDown, Minus, Clock,
+  AlertTriangle, Download, TrendingDown, Minus, Clock, BarChart3,
 } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer,
 } from 'recharts'
 import TimeBreakdown from '@/components/dashboard/TimeBreakdown'
+import GA4Section    from '@/components/dashboard/GA4Section'
 import toast from 'react-hot-toast'
 import type { CampaignInsight } from '@/services/meta/insights'
 
@@ -762,7 +763,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
   const workspaceId = params.workspaceId
 
   // ── Tabs & filters ─────────────────────────────────────────────────────────
-  const [tab,        setTab]        = useState<'overview' | 'daily' | 'breakdown'>('overview')
+  const [tab,        setTab]        = useState<'overview' | 'daily' | 'breakdown' | 'analytics'>('overview')
   const [startDate,  setStartDate]  = useState(daysAgo(29))
   const [endDate,    setEndDate]    = useState(today())
   const [activePreset, setPreset]   = useState('30 dias')
@@ -957,6 +958,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
             { id: 'overview',   label: 'Visão Geral',        icon: LayoutDashboard },
             { id: 'daily',      label: 'Desempenho Diário',  icon: TableProperties },
             { id: 'breakdown',  label: 'Horários & Dias',    icon: Clock           },
+            { id: 'analytics',  label: 'Google Analytics',   icon: BarChart3       },
           ].map(t => (
             <button
               key={t.id}
@@ -1216,6 +1218,14 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
             startDate={startDate}
             endDate={endDate}
             campaignIds={selectedIds}
+          />
+        )}
+
+        {tab === 'analytics' && (
+          <GA4Section
+            workspaceId={workspaceId}
+            startDate={startDate}
+            endDate={endDate}
           />
         )}
       </div>

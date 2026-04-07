@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { X, Eye, EyeOff, RefreshCw, CheckCircle2, XCircle, Bot, Settings, Zap, Trash2 } from 'lucide-react'
+import { X, Eye, EyeOff, RefreshCw, CheckCircle2, XCircle, Bot, Settings, Zap, Trash2, BarChart3 } from 'lucide-react'
 import { useSettingsDrawer, DrawerSection } from '@/stores/settings-drawer'
 import toast from 'react-hot-toast'
 
@@ -361,10 +361,94 @@ function WorkspaceSection({ workspaceId }: { workspaceId: string }) {
   )
 }
 
+// ─── Analytics section ─────────────────────────────────────────────────────────
+function AnalyticsSection({ workspaceId }: { workspaceId: string }) {
+  const [propertyId,     setPropertyId]     = useState('')
+  const [serviceAccount, setServiceAccount] = useState('')
+  const [saving,         setSaving]         = useState(false)
+  const [showJson,       setShowJson]       = useState(false)
+
+  useEffect(() => {
+    fetch('/api/workspaces').then(r => r.json()).then(d => {
+      if (d.success) {
+        const ws = d.data.find((w: { id: string; ga4PropertyId?: string; ga4ServiceAccount?: string }) => w.id === workspaceId)
+        if (ws?.ga4PropertyId)    setPropertyId(ws.ga4PropertyId)
+        if (ws?.ga4ServiceAccount) setServiceAccount('••••• (configurado)')
+      }
+    })
+  }, [workspaceId])
+
+  const save = async () => {
+    if (!propertyId.trim()) return toast.error('Property ID obrigatório')
+    setSaving(true)
+    const body: Record<string, string> = { ga4PropertyId: propertyId.trim() }
+    if (serviceAccount.trim() && !serviceAccount.startsWith('•')) body.ga4ServiceAccount = serviceAccount.trim()
+    const res  = await fetch(`/api/workspaces/${workspaceId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    const json = await res.json()
+    setSaving(false)
+    if (json.success) toast.success('Salvo!')
+    else toast.error(json.error)
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Instructions */}
+      <div className="rounded-xl bg-indigo-500/8 border border-indigo-500/20 p-3.5 space-y-1.5 text-xs text-gray-400">
+        <p className="font-medium text-indigo-300">Como configurar</p>
+        <ol className="space-y-1 list-decimal list-inside">
+          <li>Acesse <span className="text-gray-300">console.cloud.google.com</span> → crie um Service Account</li>
+          <li>Ative a API <span className="text-gray-300">Google Analytics Data API</span></li>
+          <li>Gere uma chave JSON e cole abaixo</li>
+          <li>No GA4, vá em Admin → Acesso à propriedade → adicione o e-mail do Service Account como Visualizador</li>
+          <li>Cole o Property ID (só os números, ex: <span className="text-gray-300">123456789</span>)</li>
+        </ol>
+      </div>
+
+      {/* Property ID */}
+      <div className="space-y-2">
+        <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Property ID</label>
+        <input
+          value={propertyId}
+          onChange={e => setPropertyId(e.target.value)}
+          placeholder="123456789"
+          className="w-full rounded-lg bg-surface-900 border border-surface-600 text-gray-100 placeholder-gray-600 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+        <p className="text-xs text-gray-600">GA4 Admin → Detalhes da propriedade → Property ID</p>
+      </div>
+
+      {/* Service Account JSON */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Service Account (JSON)</label>
+          <button onClick={() => setShowJson(v => !v)} className="text-xs text-gray-600 hover:text-gray-400 transition-colors">
+            {showJson ? 'Ocultar' : 'Mostrar'}
+          </button>
+        </div>
+        <textarea
+          value={serviceAccount}
+          onChange={e => setServiceAccount(e.target.value)}
+          onFocus={() => { if (serviceAccount.startsWith('•')) setServiceAccount('') }}
+          rows={showJson ? 8 : 3}
+          placeholder={'{\n  "type": "service_account",\n  "project_id": "...",\n  ...\n}'}
+          className="w-full rounded-lg bg-surface-900 border border-surface-600 text-gray-200 placeholder-gray-600 px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+        />
+      </div>
+
+      <button
+        onClick={save}
+        disabled={saving}
+        className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors disabled:opacity-50">
+        {saving ? 'Salvando...' : 'Salvar'}
+      </button>
+    </div>
+  )
+}
+
 // ─── Main drawer ───────────────────────────────────────────────────────────────
 const TABS: { id: DrawerSection; label: string; icon: React.ElementType }[] = [
   { id: 'meta',      label: 'Meta Ads',  icon: Zap },
   { id: 'youtube',   label: 'YouTube',   icon: Bot },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'workspace', label: 'Workspace', icon: Settings },
 ]
 
@@ -422,8 +506,9 @@ export default function SettingsDrawer() {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-5 py-5">
-          {section === 'meta'      && <MetaSection      key={workspaceId} workspaceId={workspaceId} />}
+          {section === 'meta'      && <MetaSection       key={workspaceId} workspaceId={workspaceId} />}
           {section === 'youtube'   && <YoutubeSection   />}
+          {section === 'analytics' && <AnalyticsSection key={workspaceId} workspaceId={workspaceId} />}
           {section === 'workspace' && <WorkspaceSection key={workspaceId} workspaceId={workspaceId} />}
         </div>
       </aside>
