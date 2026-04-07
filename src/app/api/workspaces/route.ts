@@ -4,7 +4,7 @@ import { prisma } from '@/services/db/client'
 
 export async function GET() {
   const workspaces = await prisma.workspace.findMany({
-    select: { id: true, name: true, adAccountName: true, metaToken: true, adAccountId: true, createdAt: true },
+    select: { id: true, name: true, adAccountName: true, metaToken: true, adAccountId: true, pageId: true, createdAt: true },
     orderBy: [{ createdAt: 'asc' }],
   })
   const data = workspaces.map(w => ({
@@ -13,6 +13,7 @@ export async function GET() {
     adAccountName: w.adAccountName,
     adAccountId: w.adAccountId,
     hasToken: !!w.metaToken,
+    pageId: w.pageId,
     createdAt: w.createdAt,
   }))
   return NextResponse.json({ success: true, data })
