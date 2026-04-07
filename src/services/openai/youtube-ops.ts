@@ -79,6 +79,12 @@ REGRAS QUE VALEM PARA AS 3:
 • Se o YouTuber prometeu colocar link/material na descrição, inclua "[LINK_AQUI — ${input.youtuberName ?? 'nome do recurso'}]" no lugar certo
 • Palavra-chave principal aparece de forma natural em cada uma, sem forçar
 
+FORMATAÇÃO OBRIGATÓRIA (crítico para renderização):
+• Separe parágrafos com linha em branco (\n\n) — nunca escreva dois parágrafos colados
+• Use emojis estrategicamente: no início de seções/parágrafos importantes, em CTAs e em listas — pelo menos 6–10 emojis por descrição, distribuídos ao longo do texto, nunca todos no final
+• Quando usar lista de items, cada item em linha separada com emoji ou símbolo na frente (ex: "▶ item", "✅ item", "🔹 item")
+• O texto dentro do JSON deve conter \n reais para quebras de linha (não literalmente a string "barra n")
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 HASHTAGS — EXATAMENTE 10
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

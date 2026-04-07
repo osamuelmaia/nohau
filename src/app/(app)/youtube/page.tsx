@@ -435,15 +435,23 @@ export default function YoutubeOpsPage() {
       <Section title="Descrições" count={result.descriptions.length}
         copyText={result.descriptions.join('\n\n---\n\n')}>
         <div className="space-y-3">
-          {result.descriptions.map((d, i) => (
-            <div key={i} className="p-4 rounded-xl bg-surface-750 border border-surface-600">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-gray-500">Descrição {i + 1}</span>
-                <CopyBtn text={d} />
+          {result.descriptions.map((d, i) => {
+            const labels = ['O Jornalista', 'O Especialista', 'O Criador']
+            return (
+              <div key={i} className="rounded-xl bg-surface-750 border border-surface-600 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-surface-600 bg-surface-800">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-md bg-indigo-500/20 text-indigo-400 text-[10px] font-bold flex items-center justify-center">{i + 1}</span>
+                    <span className="text-xs font-medium text-gray-400">{labels[i] ?? `Descrição ${i + 1}`}</span>
+                  </div>
+                  <CopyBtn text={d} />
+                </div>
+                <div className="p-4">
+                  <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{d}</p>
+                </div>
               </div>
-              <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{d}</p>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </Section>
 
