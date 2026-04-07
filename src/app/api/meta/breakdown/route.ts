@@ -4,22 +4,22 @@ import { MetaApiClient } from '@/services/meta/client'
 import { prisma } from '@/services/db/client'
 
 export interface BreakdownRow {
-  key:   string   // "0", "1", ... (hour or day index)
-  label: string   // "00h" or "Seg"
-  spend:           number
-  impressions:     number
-  reach:           number
-  clicks:          number
-  purchases:       number
-  leads:           number
+  key:   string
+  label: string
+  spend:            number
+  impressions:      number
+  reach:            number
+  clicks:           number
+  purchases:        number
+  leads:            number
   initiateCheckout: number
-  revenue:         number
-  roas:            number
-  ctr:             number
-  cpm:             number
-  cpc:             number
-  costPerLead:     number
-  costPerPurchase: number
+  revenue:          number
+  roas:             number
+  ctr:              number
+  cpm:              number
+  cpc:              number
+  costPerLead:      number
+  costPerPurchase:  number
   landingPageViews: number
 }
 
@@ -33,6 +33,38 @@ function sumActions(actions: MetaAction[], types: string[]): number {
 
 const HOUR_LABELS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}h`)
 const DAY_LABELS  = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+function emptyRow(key: string, label: string): BreakdownRow {
+  return { key, label, spend: 0, impressions: 0, reach: 0, clicks: 0, purchases: 0, leads: 0, initiateCheckout: 0, revenue: 0, roas: 0, ctr: 0, cpm: 0, cpc: 0, costPerLead: 0, costPerPurchase: 0, landingPageViews: 0 }
+}
+
+function deriveMetrics(r: BreakdownRow): BreakdownRow {
+  return {
+    ...r,
+    roas:            r.spend > 0        ? r.revenue / r.spend              : 0,
+    ctr:             r.impressions > 0  ? (r.clicks / r.impressions) * 100 : 0,
+    cpm:             r.impressions > 0  ? (r.spend / r.impressions) * 1000 : 0,
+    cpc:             r.clicks > 0       ? r.spend / r.clicks               : 0,
+    costPerLead:     r.leads > 0        ? r.spend / r.leads                : 0,
+    costPerPurchase: r.purchases > 0    ? r.spend / r.purchases            : 0,
+  }
+}
+
+function accumulate(map: Map<string, BreakdownRow>, key: string, label: string, data: Partial<BreakdownRow>) {
+  const existing = map.get(key) ?? emptyRow(key, label)
+  map.set(key, {
+    ...existing,
+    spend:            existing.spend            + (data.spend            ?? 0),
+    impressions:      existing.impressions      + (data.impressions      ?? 0),
+    reach:            existing.reach            + (data.reach            ?? 0),
+    clicks:           existing.clicks           + (data.clicks           ?? 0),
+    purchases:        existing.purchases        + (data.purchases        ?? 0),
+    leads:            existing.leads            + (data.leads            ?? 0),
+    initiateCheckout: existing.initiateCheckout + (data.initiateCheckout ?? 0),
+    revenue:          existing.revenue          + (data.revenue          ?? 0),
+    landingPageViews: existing.landingPageViews + (data.landingPageViews ?? 0),
+  })
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
@@ -55,112 +87,115 @@ export async function GET(req: NextRequest) {
       ? settings.adAccountId
       : `act_${settings.adAccountId}`
 
-    const breakdown = type === 'hours'
-      ? 'hourly_stats_aggregated_by_advertiser_time_zone'
-      : 'days_of_week'
-
     const fields = [
-      'spend', 'impressions', 'reach', 'clicks', 'ctr', 'cpm', 'frequency',
+      'spend', 'impressions', 'reach', 'clicks',
       'actions', 'action_values',
     ].join(',')
 
-    const queryParams: Record<string, string> = {
-      fields,
-      level:      'account',
-      time_range: JSON.stringify({ since: startDate, until: endDate }),
-      breakdowns: breakdown,
-      limit:      '200',
-    }
-
-    if (campaignIds) {
-      queryParams.filtering = JSON.stringify([
-        { field: 'campaign.id', operator: 'IN', value: campaignIds.split(',').filter(Boolean) },
-      ])
-    }
-
-    type MetaRow = {
-      spend: string; impressions: string; reach: string; clicks: string
-      ctr: string; cpm: string; frequency: string
-      hourly_stats_aggregated_by_advertiser_time_zone?: string
-      days_of_week?: string
-      actions?: MetaAction[]; action_values?: MetaAction[]
-    }
-
-    const resp = await client.get<{ data: MetaRow[] }>(`${accountId}/insights`, queryParams)
-    const rows = resp.data ?? []
-
-    // Build a map key → aggregated values (API may return multiple rows per slot)
     const map = new Map<string, BreakdownRow>()
 
-    for (const row of rows) {
-      const rawKey = type === 'hours'
-        ? (row.hourly_stats_aggregated_by_advertiser_time_zone ?? '0:00:00-1:00:00')
-        : (row.days_of_week ?? '0')
+    if (type === 'hours') {
+      // ── Hourly breakdown (supported by Meta API) ───────────────────────────
+      const queryParams: Record<string, string> = {
+        fields,
+        level:      'account',
+        time_range: JSON.stringify({ since: startDate, until: endDate }),
+        breakdowns: 'hourly_stats_aggregated_by_advertiser_time_zone',
+        limit:      '500',
+      }
+      if (campaignIds) {
+        queryParams.filtering = JSON.stringify([
+          { field: 'campaign.id', operator: 'IN', value: campaignIds.split(',').filter(Boolean) },
+        ])
+      }
 
-      // For hours, key is like "0:00:00-1:00:00" → extract the starting hour
-      const key = type === 'hours'
-        ? String(parseInt(rawKey.split(':')[0], 10))
-        : rawKey
+      type HourRow = {
+        spend: string; impressions: string; reach: string; clicks: string
+        hourly_stats_aggregated_by_advertiser_time_zone?: string
+        actions?: MetaAction[]; action_values?: MetaAction[]
+      }
 
-      const actions      = row.actions      ?? []
-      const actionValues = row.action_values ?? []
+      const resp = await client.get<{ data: HourRow[] }>(`${accountId}/insights`, queryParams)
+      for (const row of resp.data ?? []) {
+        // format: "0:00:00-1:00:00"
+        const rawKey = row.hourly_stats_aggregated_by_advertiser_time_zone ?? '0:00:00-1:00:00'
+        const key    = String(parseInt(rawKey.split(':')[0], 10))
+        const label  = HOUR_LABELS[parseInt(key, 10)] ?? key
 
-      const purchases        = sumActions(actions,      ['purchase', 'offsite_conversion.fb_pixel_purchase', 'omni_purchase'])
-      const leads            = sumActions(actions,      ['lead', 'offsite_conversion.fb_pixel_lead', 'onsite_conversion.lead_grouped'])
-      const initiateCheckout = sumActions(actions,      ['initiate_checkout', 'offsite_conversion.fb_pixel_initiate_checkout'])
-      const revenue          = sumActions(actionValues, ['purchase', 'offsite_conversion.fb_pixel_purchase', 'omni_purchase'])
-      const landingPageViews = sumActions(actions,      ['landing_page_view'])
-
-      const spend       = parseFloat(row.spend       || '0')
-      const impressions = parseInt  (row.impressions || '0')
-      const reach       = parseInt  (row.reach       || '0')
-      const clicks      = parseFloat(row.clicks      || '0')
-
-      const existing = map.get(key)
-      if (existing) {
-        existing.spend           += spend
-        existing.impressions     += impressions
-        existing.reach           += reach
-        existing.clicks          += clicks
-        existing.purchases       += purchases
-        existing.leads           += leads
-        existing.initiateCheckout += initiateCheckout
-        existing.revenue         += revenue
-        existing.landingPageViews += landingPageViews
-      } else {
-        const label = type === 'hours'
-          ? HOUR_LABELS[parseInt(key, 10)] ?? key
-          : DAY_LABELS[parseInt(key,  10)] ?? key
-
-        map.set(key, {
-          key, label, spend, impressions, reach, clicks,
-          purchases, leads, initiateCheckout, revenue, landingPageViews,
-          roas: 0, ctr: 0, cpm: 0, cpc: 0, costPerLead: 0, costPerPurchase: 0,
+        const actions      = row.actions      ?? []
+        const actionValues = row.action_values ?? []
+        accumulate(map, key, label, {
+          spend:            parseFloat(row.spend       || '0'),
+          impressions:      parseInt  (row.impressions || '0'),
+          reach:            parseInt  (row.reach       || '0'),
+          clicks:           parseFloat(row.clicks      || '0'),
+          purchases:        sumActions(actions,      ['purchase', 'offsite_conversion.fb_pixel_purchase', 'omni_purchase']),
+          leads:            sumActions(actions,      ['lead', 'offsite_conversion.fb_pixel_lead', 'onsite_conversion.lead_grouped']),
+          initiateCheckout: sumActions(actions,      ['initiate_checkout', 'offsite_conversion.fb_pixel_initiate_checkout']),
+          revenue:          sumActions(actionValues, ['purchase', 'offsite_conversion.fb_pixel_purchase', 'omni_purchase']),
+          landingPageViews: sumActions(actions,      ['landing_page_view']),
         })
       }
+
+      const result = Array.from({ length: 24 }, (_, i) => {
+        const key = String(i)
+        return deriveMetrics(map.get(key) ?? emptyRow(key, HOUR_LABELS[i]))
+      })
+      return NextResponse.json({ success: true, data: result })
+
+    } else {
+      // ── Days of week: fetch daily data and group by JS getDay() ────────────
+      // Meta doesn't support days_of_week breakdown directly anymore,
+      // so we use time_increment=1 and aggregate by day of week.
+      const queryParams: Record<string, string> = {
+        fields,
+        level:          'account',
+        time_range:     JSON.stringify({ since: startDate, until: endDate }),
+        time_increment: '1',
+        limit:          '500',
+      }
+      if (campaignIds) {
+        queryParams.filtering = JSON.stringify([
+          { field: 'campaign.id', operator: 'IN', value: campaignIds.split(',').filter(Boolean) },
+        ])
+      }
+
+      type DayRow = {
+        spend: string; impressions: string; reach: string; clicks: string
+        date_start?: string
+        actions?: MetaAction[]; action_values?: MetaAction[]
+      }
+
+      const resp = await client.get<{ data: DayRow[] }>(`${accountId}/insights`, queryParams)
+      for (const row of resp.data ?? []) {
+        // date_start is YYYY-MM-DD; add T12:00:00 to avoid timezone shift
+        const dateStr = row.date_start ?? startDate
+        const dow     = new Date(`${dateStr}T12:00:00`).getDay() // 0=Sun … 6=Sat
+        const key     = String(dow)
+        const label   = DAY_LABELS[dow]
+
+        const actions      = row.actions      ?? []
+        const actionValues = row.action_values ?? []
+        accumulate(map, key, label, {
+          spend:            parseFloat(row.spend       || '0'),
+          impressions:      parseInt  (row.impressions || '0'),
+          reach:            parseInt  (row.reach       || '0'),
+          clicks:           parseFloat(row.clicks      || '0'),
+          purchases:        sumActions(actions,      ['purchase', 'offsite_conversion.fb_pixel_purchase', 'omni_purchase']),
+          leads:            sumActions(actions,      ['lead', 'offsite_conversion.fb_pixel_lead', 'onsite_conversion.lead_grouped']),
+          initiateCheckout: sumActions(actions,      ['initiate_checkout', 'offsite_conversion.fb_pixel_initiate_checkout']),
+          revenue:          sumActions(actionValues, ['purchase', 'offsite_conversion.fb_pixel_purchase', 'omni_purchase']),
+          landingPageViews: sumActions(actions,      ['landing_page_view']),
+        })
+      }
+
+      const result = Array.from({ length: 7 }, (_, i) => {
+        const key = String(i)
+        return deriveMetrics(map.get(key) ?? emptyRow(key, DAY_LABELS[i]))
+      })
+      return NextResponse.json({ success: true, data: result })
     }
 
-    // Compute derived metrics and fill missing slots with zeros
-    const size   = type === 'hours' ? 24 : 7
-    const labels = type === 'hours' ? HOUR_LABELS : DAY_LABELS
-    const result: BreakdownRow[] = Array.from({ length: size }, (_, i) => {
-      const key = String(i)
-      const r   = map.get(key)
-      if (!r) return {
-        key, label: labels[i], spend: 0, impressions: 0, reach: 0, clicks: 0,
-        purchases: 0, leads: 0, initiateCheckout: 0, revenue: 0, landingPageViews: 0,
-        roas: 0, ctr: 0, cpm: 0, cpc: 0, costPerLead: 0, costPerPurchase: 0,
-      }
-      r.roas            = r.spend > 0         ? r.revenue / r.spend              : 0
-      r.ctr             = r.impressions > 0   ? (r.clicks / r.impressions) * 100 : 0
-      r.cpm             = r.impressions > 0   ? (r.spend / r.impressions) * 1000 : 0
-      r.cpc             = r.clicks > 0        ? r.spend / r.clicks               : 0
-      r.costPerLead     = r.leads > 0         ? r.spend / r.leads                : 0
-      r.costPerPurchase = r.purchases > 0     ? r.spend / r.purchases            : 0
-      return r
-    })
-
-    return NextResponse.json({ success: true, data: result })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Erro ao buscar breakdown'
     return NextResponse.json({ success: false, error: msg }, { status: 500 })
