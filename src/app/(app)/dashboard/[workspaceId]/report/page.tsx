@@ -9,6 +9,7 @@ import Link from 'next/link'
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface MonthRow {
   month: string; ym: string
+  error?: boolean; errorMsg?: string
   spend: number; impressions: number; reach: number; clicks: number
   ctr: number; cpm: number; frequency: number; purchases: number
   leads: number; initiateCheckout: number; revenue: number; roas: number
@@ -87,9 +88,9 @@ function val(row: MonthRow, m: MetricDef) {
 // ── Screen metric card ────────────────────────────────────────────────────────
 function ScreenCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className={`rounded-xl p-4 border min-w-0 ${accent ? 'bg-indigo-500/10 border-indigo-500/20' : 'bg-surface-700 border-surface-600'}`}>
+    <div className={`rounded-xl p-4 border min-w-0 overflow-hidden ${accent ? 'bg-indigo-500/10 border-indigo-500/20' : 'bg-surface-700 border-surface-600'}`}>
       <p className="text-xs text-gray-500 uppercase tracking-wider truncate">{label}</p>
-      <p className={`font-bold truncate mt-1 text-xl tabular-nums ${accent ? 'text-indigo-200' : 'text-gray-100'}`}>{value}</p>
+      <p className={`font-bold mt-1 tabular-nums leading-tight overflow-hidden text-ellipsis whitespace-nowrap ${accent ? 'text-indigo-200 text-lg' : 'text-gray-100 text-base'}`}>{value}</p>
     </div>
   )
 }
@@ -245,9 +246,11 @@ export default function ReportPage() {
                     <button
                       key={row.ym}
                       onClick={() => setActiveMonth(row.ym)}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors flex items-center justify-between gap-2 ${activeMonth === row.ym ? 'bg-indigo-600 text-white font-semibold' : 'text-gray-400 hover:text-gray-200 hover:bg-surface-700'}`}>
-                      <span>{row.month}</span>
-                      {row.spend > 0 && <span className="text-[10px] tabular-nums opacity-60">{R$(row.spend)}</span>}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors flex items-center justify-between gap-2 ${activeMonth === row.ym ? 'bg-indigo-600 text-white font-semibold' : row.error ? 'text-red-400 hover:text-red-300 hover:bg-surface-700' : 'text-gray-400 hover:text-gray-200 hover:bg-surface-700'}`}>
+                      <span className="truncate">{row.month}</span>
+                      {row.error
+                        ? <span className="text-[10px] opacity-70 shrink-0">erro</span>
+                        : row.spend > 0 && <span className="text-[10px] tabular-nums opacity-60 shrink-0">{R$(row.spend)}</span>}
                     </button>
                   ))}
                 </div>
@@ -266,6 +269,13 @@ export default function ReportPage() {
                   {activeMonth ? 'Desempenho mensal detalhado' : `${data.length} meses · ${startMonth} → ${endMonth}`}
                 </p>
               </div>
+
+              {/* Error banner for failed month */}
+              {displayRow?.error && (
+                <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+                  Erro ao buscar dados deste mês: {displayRow.errorMsg ?? 'Falha na API da Meta'}
+                </div>
+              )}
 
               {displayRow && (
                 <>

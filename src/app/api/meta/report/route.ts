@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 import { NextRequest, NextResponse } from 'next/server'
 import { getInsights, aggregateInsights } from '@/services/meta/insights'
 
@@ -29,6 +30,8 @@ const MONTH_LABELS: Record<string, string> = {
   '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez',
 }
 
+function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)) }
+
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const startMonth  = searchParams.get('startMonth')  ?? '2025-11'
@@ -39,13 +42,18 @@ export async function GET(req: NextRequest) {
   try {
     const months = monthsBetween(startMonth, endMonth)
 
-    const results = await Promise.all(
-      months.map(async (ym) => {
-        const { start, end } = monthRange(ym)
-        const [y, m] = ym.split('-')
-        const label = `${MONTH_LABELS[m] ?? m}/${y}`
+    // Sequential fetching to avoid Meta API rate limits
+    const results = []
+    for (const ym of months) {
+      const { start, end } = monthRange(ym)
+      const [y, m] = ym.split('-')
+      const label = `${MONTH_LABELS[m] ?? m}/${y}`
 
+      let attempt = 0
+      let success = false
+      while (attempt < 3 && !success) {
         try {
+          if (attempt > 0) await sleep(attempt * 1500)
           const rows = await getInsights({
             startDate: start,
             endDate:   end,
@@ -53,12 +61,17 @@ export async function GET(req: NextRequest) {
             ...(campaignIds ? { campaignIds: campaignIds.split(',').filter(Boolean) } : {}),
           })
           const agg = aggregateInsights(rows)
-          return { month: label, ym, ...( agg ?? emptyRow()) }
-        } catch {
-          return { month: label, ym, ...emptyRow() }
+          results.push({ month: label, ym, error: false, ...( agg ?? emptyRow()) })
+          success = true
+        } catch (e) {
+          attempt++
+          if (attempt >= 3) {
+            const msg = e instanceof Error ? e.message : 'Erro desconhecido'
+            results.push({ month: label, ym, error: true, errorMsg: msg, ...emptyRow() })
+          }
         }
-      })
-    )
+      }
+    }
 
     return NextResponse.json({ success: true, data: results })
   } catch (e) {
