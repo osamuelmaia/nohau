@@ -7,8 +7,9 @@ import {
   Calendar, ChevronDown, Check, Loader2, GripVertical,
   Plus, X, ArrowUpDown, ArrowUp, ArrowDown, LayoutDashboard,
   TableProperties, AlertCircle, Settings2, Search,
-  AlertTriangle, Download, TrendingDown, Minus, Clock, BarChart3,
+  AlertTriangle, Download, TrendingDown, Minus, Clock, BarChart3, FileText,
 } from 'lucide-react'
+import Link from 'next/link'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -941,6 +942,14 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
             <h1 className="text-2xl font-bold text-gray-100">Dashboard</h1>
             <p className="text-sm text-gray-500 mt-0.5">Performance das campanhas Meta Ads</p>
           </div>
+          <div className="flex items-center gap-2">
+          <Link
+            href={`/dashboard/${workspaceId}/report`}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-700 border border-surface-600
+              text-sm font-medium text-gray-300 hover:text-gray-100 hover:bg-surface-600 transition-colors">
+            <FileText className="w-4 h-4" />
+            Relatório PDF
+          </Link>
           <button
             onClick={fetchData}
             disabled={loading}
@@ -951,6 +960,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
               : <RefreshCw className="w-4 h-4" />}
             Atualizar
           </button>
+          </div>
         </div>
 
         {/* ── Tabs ────────────────────────────────────────────────────────── */}
