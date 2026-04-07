@@ -32,6 +32,7 @@ interface AdAccount { id: string; name: string; account_id: string; account_stat
 // ─── Meta section ─────────────────────────────────────────────────────────────
 function MetaSection({ workspaceId }: { workspaceId: string }) {
   const [token, setToken]             = useState('')
+  const [hasToken, setHasToken]       = useState(false)   // token already saved in DB
   const [pageId, setPageId]           = useState('')
   const [showToken, setShowToken]     = useState(false)
   const [testing, setTesting]         = useState(false)
@@ -45,8 +46,9 @@ function MetaSection({ workspaceId }: { workspaceId: string }) {
   const load = useCallback(() => {
     fetch('/api/workspaces').then(r => r.json()).then(d => {
       if (d.success) {
-        const ws = d.data.find((w: { id: string; adAccountId?: string; adAccountName?: string; pageId?: string }) => w.id === workspaceId)
+        const ws = d.data.find((w: { id: string; hasToken?: boolean; adAccountId?: string; adAccountName?: string; pageId?: string }) => w.id === workspaceId)
         if (ws) {
+          setHasToken(!!ws.hasToken)
           setSelAccount(ws.adAccountId ?? '')
           setSelAccountName(ws.adAccountName ?? '')
           setPageId(ws.pageId ?? '')
@@ -60,35 +62,49 @@ function MetaSection({ workspaceId }: { workspaceId: string }) {
   const testToken = async () => {
     if (!token.trim()) return toast.error('Cole o token primeiro')
     setTesting(true); setTestResult(null)
-    const res  = await fetch('/api/meta/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) })
-    const json = await res.json()
-    setTestResult(json.success ? { ok: true, name: json.data.name } : { ok: false })
+    try {
+      const res  = await fetch('/api/meta/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) })
+      const json = await res.json()
+      setTestResult(json.success ? { ok: true, name: json.data.name } : { ok: false })
+    } catch { setTestResult({ ok: false }) }
     setTesting(false)
   }
 
   const loadAccounts = async () => {
-    if (!token.trim()) return toast.error('Cole o token primeiro')
-    await fetch(`/api/workspaces/${workspaceId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ metaToken: token, adAccountId: selAccount, adAccountName: selAccountName, pageId }),
-    })
+    // If new token entered → save it first; if no token typed but one is saved → use saved
+    if (!token.trim() && !hasToken) return toast.error('Cole o token primeiro')
     setLoadingAcc(true)
-    const res  = await fetch(`/api/meta/accounts?workspaceId=${workspaceId}`)
-    const json = await res.json()
-    if (json.success) setAccounts(json.data)
-    else toast.error(json.error)
+    try {
+      if (token.trim()) {
+        const patch = await fetch(`/api/workspaces/${workspaceId}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ metaToken: token }),
+        })
+        const pj = await patch.json()
+        if (!pj.success) { toast.error(pj.error ?? 'Erro ao salvar token'); setLoadingAcc(false); return }
+        setHasToken(true)
+      }
+      const res  = await fetch(`/api/meta/accounts?workspaceId=${workspaceId}`)
+      const json = await res.json()
+      if (json.success) setAccounts(json.data)
+      else toast.error(json.error ?? 'Erro ao buscar contas')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao buscar contas')
+    }
     setLoadingAcc(false)
   }
 
   const save = async () => {
     setSaving(true)
-    const body: Record<string, string> = { adAccountId: selAccount, adAccountName: selAccountName, pageId }
-    if (token.trim()) body.metaToken = token
-    const res  = await fetch(`/api/workspaces/${workspaceId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    const json = await res.json()
+    try {
+      const body: Record<string, string> = { adAccountId: selAccount, adAccountName: selAccountName, pageId }
+      if (token.trim()) body.metaToken = token
+      const res  = await fetch(`/api/workspaces/${workspaceId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const json = await res.json()
+      if (json.success) { toast.success('Salvo!'); setHasToken(true) }
+      else toast.error(json.error)
+    } catch { toast.error('Erro ao salvar') }
     setSaving(false)
-    if (json.success) toast.success('Salvo!')
-    else toast.error(json.error)
   }
 
   return (
@@ -102,7 +118,7 @@ function MetaSection({ workspaceId }: { workspaceId: string }) {
               type={showToken ? 'text' : 'password'}
               value={token}
               onChange={e => setToken(e.target.value)}
-              placeholder="EAAxxxxxxxxxxxxx..."
+              placeholder={hasToken ? '●●●●● (token salvo — cole novo para substituir)' : 'EAAxxxxxxxxxxxxx...'}
               className="w-full rounded-lg bg-surface-900 border border-surface-600 text-gray-100 placeholder-gray-600 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 pr-10"
             />
             <button onClick={() => setShowToken(!showToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
