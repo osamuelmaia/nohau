@@ -8,6 +8,24 @@ const nextConfig = {
       { protocol: 'https', hostname: '**.facebook.com' },
     ],
   },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        'node:fs': false,
+        path: false,
+        'node:path': false,
+        os: false,
+        'node:os': false,
+        stream: false,
+        'node:stream': false,
+        crypto: false,
+        'node:crypto': false,
+      }
+    }
+    return config
+  },
 }
 
 export default nextConfig
