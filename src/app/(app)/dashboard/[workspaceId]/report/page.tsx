@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation'
 import { ArrowLeft, RefreshCw, Presentation } from 'lucide-react'
 import Link from 'next/link'
 
+// PPT is generated server-side at /api/meta/report/ppt — no pptxgenjs import here
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface MonthRow {
   month: string; ym: string
@@ -115,112 +117,6 @@ function BarRow({ label, value, max, fmt }: { label: string; value: number; max:
   )
 }
 
-// ── PPT Generator ─────────────────────────────────────────────────────────────
-async function generatePPT(wsName: string, data: MonthRow[], total: MonthRow, start: string, end: string) {
-  const PptxGenJS = (await import('pptxgenjs')).default
-  const pres = new PptxGenJS()
-
-  pres.layout  = 'LAYOUT_WIDE' // 13.33" × 7.5"
-  pres.title   = `Relatório Meta Ads · ${wsName}`
-  pres.subject = `${start} → ${end}`
-
-  // Palette
-  const BG     = '0f172a'
-  const CARD   = '1e293b'
-  const BORDER = '334155'
-  const ACC_BG = '312e81'
-  const ACC_BD = '4338ca'
-  const WHITE  = 'f1f5f9'
-  const GRAY   = '64748b'
-  const LAVENDER = 'a5b4fc'
-  const INDIGO   = '6366f1'
-
-  const W = 13.33, PAD = 0.4
-  const USABLE = W - PAD * 2          // 12.53"
-  const COLS = 5
-  const CARD_W = (USABLE - (COLS - 1) * 0.14) / COLS  // ~2.37"
-  const CARD_GAP = 0.14
-
-  function addMetricCard(
-    slide: ReturnType<typeof pres.addSlide>,
-    x: number, y: number, w: number, h: number,
-    label: string, value: string, accent: boolean,
-    valSize: number,
-  ) {
-    slide.addShape(pres.ShapeType.roundRect, {
-      x, y, w, h,
-      fill: { color: accent ? ACC_BG : CARD },
-      line: { color: accent ? ACC_BD : BORDER, width: 0.75 },
-      rectRadius: 0.08,
-    })
-    slide.addText(label.toUpperCase(), {
-      x: x + 0.12, y: y + 0.1, w: w - 0.24, h: 0.22,
-      fontSize: 6.5, color: accent ? LAVENDER : GRAY,
-      fontFace: 'Arial', bold: false,
-    })
-    slide.addText(value === '—' ? '—' : value, {
-      x: x + 0.12, y: y + 0.32, w: w - 0.24, h: h - 0.42,
-      fontSize: valSize, color: WHITE,
-      fontFace: 'Arial', bold: true,
-      shrinkText: true,
-    })
-  }
-
-  function buildSlide(title: string, subtitle: string, row: MonthRow) {
-    const slide = pres.addSlide()
-    slide.background = { color: BG }
-
-    // Header
-    slide.addText(title, {
-      x: PAD, y: 0.18, w: 9.5, h: 0.5,
-      fontSize: 26, bold: true, color: WHITE, fontFace: 'Arial',
-    })
-    slide.addText(subtitle, {
-      x: PAD, y: 0.66, w: 9.5, h: 0.24,
-      fontSize: 9, color: GRAY, fontFace: 'Arial',
-    })
-    // Divider
-    slide.addShape(pres.ShapeType.rect, {
-      x: PAD, y: 1.0, w: USABLE, h: 0.018,
-      fill: { color: ACC_BD }, line: { color: ACC_BD, width: 0 },
-    })
-
-    // Hero row (5 taller cards)
-    const heroH = 1.2
-    HERO_METRICS.forEach((m, i) => {
-      const x = PAD + i * (CARD_W + CARD_GAP)
-      addMetricCard(slide, x, 1.1, CARD_W, heroH, m.label, val(row, m), true, 18)
-    })
-
-    // Rest metrics (5 × 3 grid)
-    const restStartY = 1.1 + heroH + 0.16
-    const restH = 0.82
-    REST_METRICS.forEach((m, i) => {
-      const col = i % 5
-      const rw  = Math.floor(i / 5)
-      const x   = PAD + col * (CARD_W + CARD_GAP)
-      const y   = restStartY + rw * (restH + 0.1)
-      addMetricCard(slide, x, y, CARD_W, restH, m.label, val(row, m), false, 13)
-    })
-
-    return slide
-  }
-
-  // ── Slide 1: summary ──
-  const now = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
-  buildSlide(
-    wsName,
-    `Resumo do Período · ${start} → ${end} · ${data.length} meses · Gerado em ${now}`,
-    total,
-  )
-
-  // ── Slides 2+: one per month ──
-  for (const row of data) {
-    buildSlide(row.month, `${wsName} · Meta Ads`, row)
-  }
-
-  await pres.writeFile({ fileName: `relatorio-${wsName.replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.pptx` })
-}
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function ReportPage() {
@@ -231,7 +127,6 @@ export default function ReportPage() {
   const [endMonth,     setEndMonth]     = useState(currentYM)
   const [data,         setData]         = useState<MonthRow[]>([])
   const [loading,      setLoading]      = useState(false)
-  const [exporting,    setExporting]    = useState(false)
   const [error,        setError]        = useState<string | null>(null)
   const [wsName,       setWsName]       = useState('Workspace')
   const [activeMonth,  setActiveMonth]  = useState<string | null>(null)
@@ -267,17 +162,10 @@ export default function ReportPage() {
   const activeRow  = activeMonth ? data.find(r => r.ym === activeMonth) : null
   const displayRow = activeRow ?? total
 
-  async function handleExport() {
-    if (!total || data.length === 0) return
-    setExporting(true)
-    try {
-      await generatePPT(wsName, data, total, startMonth, endMonth)
-    } catch (e) {
-      console.error('PPT error', e)
-      setError('Erro ao gerar PPT: ' + (e instanceof Error ? e.message : String(e)))
-    } finally {
-      setExporting(false)
-    }
+  function handleExport() {
+    if (data.length === 0) return
+    const params = new URLSearchParams({ startMonth, endMonth, workspaceId })
+    window.location.href = `/api/meta/report/ppt?${params}`
   }
 
   return (
@@ -313,10 +201,10 @@ export default function ReportPage() {
             Atualizar
           </button>
 
-          <button onClick={handleExport} disabled={exporting || loading || data.length === 0}
+          <button onClick={handleExport} disabled={loading || data.length === 0}
             className="w-full flex items-center justify-center gap-1.5 py-2 rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-xs text-white font-medium transition-colors">
-            <Presentation className={`w-3.5 h-3.5 ${exporting ? 'animate-pulse' : ''}`} />
-            {exporting ? 'Gerando PPT…' : 'Exportar PPT'}
+            <Presentation className="w-3.5 h-3.5" />
+            Exportar PPT
           </button>
         </div>
 
