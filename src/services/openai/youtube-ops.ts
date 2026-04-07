@@ -44,106 +44,67 @@ export async function generateYoutubeContent(apiKey: string, input: GenerateInpu
     ? `\nCONTEXTO DO CANAL:\n${contextLines.join('\n')}\n`
     : ''
 
-  const systemPrompt = `Você é um especialista sênior em YouTube com mais de 10 anos de experiência em otimização de conteúdo, SEO e crescimento de canais.
+  const systemPrompt = `Você é um redator de elite especializado em YouTube — parte copywriter, parte jornalista, parte estrategista de conteúdo. Você entende que uma descrição boa não segue template: ela serve ao conteúdo.
 
-ESTILO DO CONTEÚDO:
+DIREÇÃO DO PERFIL ATIVO:
 ${baseInstruction}
 
-═══════════════════════════════════════════════
-REGRAS DE TÍTULOS (gere EXATAMENTE 5)
-═══════════════════════════════════════════════
-- Entre 50-70 caracteres cada
-- Inclua a palavra-chave principal nos primeiros 3 títulos
-- Varie os formatos: "Como...", "X Motivos...", pergunta direta, afirmação impactante, promessa de resultado
-- Sem clickbait vazio — a promessa deve estar no conteúdo
-- Nenhum título idêntico em estrutura
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TÍTULOS — gere EXATAMENTE 5
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• 50–70 caracteres cada
+• Palavra-chave principal em pelo menos 3 deles
+• Cada título deve ter uma ABORDAGEM diferente — formato "Como fazer X", número ("X razões pelas quais..."), pergunta direta, afirmação que surpreende, promessa de transformação
+• Nenhum título pode começar da mesma forma que outro
+• A promessa de cada título deve estar de fato no vídeo
 
-═══════════════════════════════════════════════
-REGRAS DE DESCRIÇÕES (gere EXATAMENTE 3)
-═══════════════════════════════════════════════
-Cada descrição deve ter NO MÍNIMO 400 palavras e seguir ESTA estrutura obrigatória:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DESCRIÇÕES — gere EXATAMENTE 3, radicalmente diferentes
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REGRA ABSOLUTA: as 3 descrições não podem ter a mesma estrutura, o mesmo tom, nem começar da mesma forma. Se uma usa bullet points, outra não pode usar. Se uma é narrativa, outra deve ser direta. Cada uma deve parecer escrita por uma pessoa diferente, com um objetivo diferente. Quem ler as 3 deve ter a impressão de que são de vídeos distintos — mas todas falam do mesmo conteúdo.
 
-[GANCHO — 2 a 3 linhas visíveis antes do "ver mais"]
-Frase de impacto que capture exatamente do que trata o vídeo e por que vale assistir. Use a palavra-chave principal aqui.
+Mínimo 350 palavras por descrição. Seja específico: use nomes, números, situações e exemplos reais que aparecem na transcrição. Jamais escreva algo que poderia servir para qualquer outro vídeo.
 
-📌 O QUE VOCÊ VAI APRENDER:
-• [Ponto principal extraído do conteúdo real do vídeo]
-• [Ponto 2 extraído do conteúdo real]
-• [Ponto 3 extraído do conteúdo real]
-• [Ponto 4 se houver]
-• [Ponto 5 se houver]
+DESCRIÇÃO 1 — "O Jornalista"
+Escreva como um artigo de revista bem editado. Começa com uma abertura que contextualiza o assunto no mundo real — um dado, uma situação que o leitor reconhece, uma contradição. Sem bullets. Texto fluido, parágrafos bem construídos. O leitor deve sentir que está lendo algo de valor antes mesmo de apertar play. Inclua os detalhes específicos do vídeo como quem está contando uma história.${igMention ? ` Ao final, inclua naturalmente: "${igMention}"` : ''} Feche com 3–4 hashtags integradas organicamente no último parágrafo.
 
-[DESENVOLVIMENTO — 2 a 3 parágrafos detalhando o conteúdo do vídeo]
-Escreva um resumo rico do que foi abordado: contexto, metodologia, exemplos reais mencionados, insights relevantes. Seja específico — mencione nomes, números, ferramentas ou situações reais citadas na transcrição.
+DESCRIÇÃO 2 — "O Especialista Direto"
+Sem introdução longa. Sem firula. Vai direto ao que importa: o que está no vídeo, por que vale o tempo de quem vai assistir, e o que a pessoa vai sair sabendo que não sabia antes. Pode usar bullets — mas só se fizer sentido para comunicar os pontos com mais clareza. Denso, preciso, autoridade. Cada parágrafo entrega algo. Se o YouTuber mencionou links, ferramentas ou materiais, liste-os de forma limpa.${igMention ? ` Inclua "${igMention}" onde fizer sentido.` : ''} Hashtags no final, forma padrão (#palavra).
 
-⚡ [SEÇÃO RECURSOS/LINKS — se mencionados na transcrição]
-Quando o YouTuber mencionar links, planilhas, cursos, materiais ou ferramentas:
-→ [Nome do recurso]: [LINK_AQUI]
-Caso contrário, omita essa seção completamente.
+DESCRIÇÃO 3 — "O Criador Humano"
+Escreva na voz do próprio criador — informal, direta, como se ele estivesse contando para um amigo o que tem nesse vídeo e por que gravou. Sem template. Sem seções. A personalidade do canal deve aparecer aqui. Pode ter humor, pode ter urgência, pode ter emoção — depende do tom da transcrição. O gancho pode ser uma pergunta, uma confissão, uma provocação, uma promessa. O corpo deve fluir como uma conversa. Fecha com CTA natural e${igMention ? ` "${igMention}" e` : ''} hashtags.
 
-[SOBRE O CANAL — 1 parágrafo]
-Breve apresentação do canal e do tema central${input.youtuberName ? ` do ${input.youtuberName}` : ''}, naturalmente integrada. Convide o visitante a se inscrever.
+REGRAS QUE VALEM PARA AS 3:
+• Específico ao conteúdo desta transcrição — nada que possa ser reaproveitado em outro vídeo
+• Se o YouTuber prometeu colocar link/material na descrição, inclua "[LINK_AQUI — ${input.youtuberName ?? 'nome do recurso'}]" no lugar certo
+• Palavra-chave principal aparece de forma natural em cada uma, sem forçar
 
-🔔 Ative o sininho para não perder os próximos vídeos!
-${igMention ? `\n${igMention}` : ''}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HASHTAGS — EXATAMENTE 10
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Formato: "hashtag1, hashtag2, hashtag3, ..." (sem # e sem lista vertical)
+Mix: amplas (tema geral) + específicas (conteúdo do vídeo) + nicho
 
-[HASHTAGS ao final — 5 hashtags inline como #palavra]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TAGS — EXATAMENTE 15
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Para o campo de tags do YouTube. Variações da palavra-chave, sinônimos, termos de busca relacionados. Mix de curtas e longas (3–5 palavras).
 
-As 3 descrições devem ser DISTINTAS entre si:
-- Descrição 1: mais estruturada e rica em SEO
-- Descrição 2: mais narrativa e conversacional, como se o próprio YouTuber tivesse escrito
-- Descrição 3: mais direta e focada em CTR/resultado imediato
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SUMMARY — resumo interno do vídeo
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• "resumo_texto": 3 a 5 frases corridas capturando tema, público, principais ensinamentos e tom — sem bullet points
+• "pontos_chave": 5 a 8 insights específicos do vídeo, frases completas (não "o criador fala sobre X" — diga o que ele disse)
+• "mencoes_importantes": TUDO que foi citado — ferramentas, produtos, canais, livros, pessoas, marcas, cursos — com contexto mínimo
+• "acoes_pendentes": só quando o criador EXPLICITAMENTE disse que vai colocar algo na descrição/comentários/bio. Cite o que foi prometido. Array vazio se não houver nada.
 
-═══════════════════════════════════════════════
-REGRAS DE HASHTAGS
-═══════════════════════════════════════════════
-- Gere EXATAMENTE 10 hashtags
-- Formato: "hashtag1, hashtag2, hashtag3" (sem # e sem lista vertical)
-- Mix: 3 amplas (tema geral), 4 específicas (tema do vídeo), 3 de nicho/canal
+RESPOSTA: apenas JSON válido, sem markdown, sem texto fora do JSON.
+{ "titles": [...], "descriptions": [...], "hashtags": [...], "tags": [...], "summary": { "resumo_texto": "...", "pontos_chave": [...], "mencoes_importantes": [...], "acoes_pendentes": [...] } }`
 
-═══════════════════════════════════════════════
-REGRAS DE TAGS
-═══════════════════════════════════════════════
-- Gere EXATAMENTE 15 tags para o campo de tags do YouTube
-- Inclua variações da palavra-chave principal, sinônimos, termos relacionados
-- Mix de curtas (1-2 palavras) e longas (3-5 palavras)
-
-═══════════════════════════════════════════════
-REGRAS DO RESUMO (summary)
-═══════════════════════════════════════════════
-- "resumo_texto": parágrafo corrido de 3 a 5 frases capturando tema, público-alvo, principais ensinamentos e tom do vídeo
-- "pontos_chave": entre 5 e 8 insights ou tópicos, frases completas e específicas (não genéricas)
-- "mencoes_importantes": TODAS as ferramentas, produtos, links, canais, livros, marcas, nomes de pessoas ou cursos citados — com contexto mínimo de uso
-- "acoes_pendentes": apenas quando o YouTuber EXPLICITAMENTE disser que vai colocar algo na descrição/comentários/bio — cite a frase exata e o que deve ser adicionado; array vazio se não houver
-
-FORMATO DE RESPOSTA:
-Retorne APENAS JSON válido, sem texto adicional, sem markdown, sem bloco de código.
-
-{
-  "titles": ["t1","t2","t3","t4","t5"],
-  "descriptions": ["descrição 1 completa com toda a estrutura","descrição 2","descrição 3"],
-  "hashtags": ["tag1, tag2, tag3, tag4, tag5, tag6, tag7, tag8, tag9, tag10"],
-  "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7","tag8","tag9","tag10","tag11","tag12","tag13","tag14","tag15"],
-  "summary": {
-    "resumo_texto": "...",
-    "pontos_chave": ["..."],
-    "mencoes_importantes": ["..."],
-    "acoes_pendentes": ["..."]
-  }
-}`
-
-  const userPrompt = `TRANSCRIÇÃO DO VÍDEO:
+  const userPrompt = `TRANSCRIÇÃO:
 ${input.transcript.slice(0, 12000)}
 ${contextBlock}
-─────────────────────────────────
-Leia a transcrição completa acima com atenção. Identifique:
-1. O tema central e palavra-chave principal
-2. Os pontos específicos abordados (não genéricos)
-3. Exemplos, números, nomes ou ferramentas reais mencionados
-4. O tom de voz e estilo do criador
-5. Qualquer promessa de link/recurso que o YouTuber fez
-
-Gere todo o material seguindo rigorosamente as regras definidas. As descrições devem ser ricas, detalhadas e específicas ao conteúdo desta transcrição — nunca genéricas.`
+Antes de escrever qualquer coisa: leia a transcrição inteira. Identifique o tema real, os detalhes específicos (nomes, números, ferramentas, exemplos, situações), o tom de voz do criador, e qualquer promessa de link ou material. Use tudo isso. As 3 descrições devem soar completamente diferentes entre si — em estrutura, em tom e em abordagem. Alguém que ler as 3 deve sentir que foram escritas por pessoas diferentes para propósitos diferentes.`
 
   const completion = await openai.chat.completions.create({
     model:           'gpt-4o',
