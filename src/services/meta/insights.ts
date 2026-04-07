@@ -57,7 +57,10 @@ function sumActions(actions: MetaAction[], types: string[]): number {
 }
 
 async function getClientAndAccount(workspaceId = 'default') {
-  const settings = await prisma.workspace.findUnique({ where: { id: workspaceId } })
+  const settings = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { metaToken: true, adAccountId: true },
+  })
   if (!settings?.metaToken)   throw new Error('Token Meta não configurado')
   if (!settings?.adAccountId) throw new Error('Conta de anúncios não selecionada')
 

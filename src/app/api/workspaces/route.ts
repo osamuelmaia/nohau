@@ -22,6 +22,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const { name } = await req.json()
   if (!name?.trim()) return NextResponse.json({ success: false, error: 'Nome obrigatório' }, { status: 400 })
-  const workspace = await prisma.workspace.create({ data: { name: name.trim() } })
+  const workspace = await prisma.workspace.create({
+    data: { name: name.trim() },
+    select: { id: true, name: true, createdAt: true },
+  })
   return NextResponse.json({ success: true, data: workspace })
 }

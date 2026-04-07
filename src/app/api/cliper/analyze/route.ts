@@ -77,7 +77,7 @@ async function cleanupOldJobs() {
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const settings = await prisma.workspace.findUnique({ where: { id: 'default' } })
+  const settings = await prisma.workspace.findUnique({ where: { id: 'default' }, select: { openaiKey: true } })
   if (!settings?.openaiKey)
     return NextResponse.json({ success: false, error: 'OpenAI API Key não configurada.' }, { status: 400 })
 

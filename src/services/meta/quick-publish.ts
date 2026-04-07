@@ -172,7 +172,10 @@ export async function quickPublish(payload: PublishPayload): Promise<PublishResu
   let adsCreated = 0
 
   // ── Load credentials ───────────────────────────────────────────────────────
-  const settings = await prisma.workspace.findUnique({ where: { id: 'default' } })
+  const settings = await prisma.workspace.findUnique({
+    where: { id: 'default' },
+    select: { metaToken: true, adAccountId: true },
+  })
   if (!settings?.metaToken)   throw new Error('Token Meta não configurado')
   if (!settings?.adAccountId) throw new Error('Conta de anúncios não selecionada')
 

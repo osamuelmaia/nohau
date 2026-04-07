@@ -13,7 +13,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'startDate e endDate são obrigatórios' }, { status: 400 })
 
   try {
-    const ws = await prisma.workspace.findUnique({ where: { id: workspaceId } })
+    const ws = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { ga4PropertyId: true, ga4ServiceAccount: true },
+    })
     if (!ws?.ga4PropertyId)    throw new Error('Property ID do GA4 não configurado')
     if (!ws?.ga4ServiceAccount) throw new Error('Service Account do GA4 não configurado')
 

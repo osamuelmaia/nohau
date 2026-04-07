@@ -12,7 +12,10 @@ const schema = z.object({
 })
 
 export async function GET() {
-  const s = await prisma.workspace.findUnique({ where: { id: 'default' } })
+  const s = await prisma.workspace.findUnique({
+    where: { id: 'default' },
+    select: { metaToken: true, adAccountId: true, adAccountName: true, pageId: true, openaiKey: true, youtubePrompt: true },
+  })
   return NextResponse.json({
     success: true,
     data: s ? {
@@ -36,6 +39,7 @@ export async function POST(req: NextRequest) {
     where: { id: 'default' },
     create: { id: 'default', metaToken, adAccountId, adAccountName, pageId, openaiKey },
     update: { metaToken, adAccountId, adAccountName, pageId, openaiKey },
+    select: { id: true },
   })
 
   return NextResponse.json({ success: true })
@@ -47,6 +51,7 @@ export async function PATCH(req: NextRequest) {
     where: { id: 'default' },
     create: { id: 'default', ...body },
     update: body,
+    select: { id: true },
   })
   return NextResponse.json({ success: true })
 }

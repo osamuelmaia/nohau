@@ -108,7 +108,10 @@ export class MetaError extends Error {
 // Build a Meta client using the token stored in workspace settings
 export async function getMetaClientFromSettings(workspaceId = 'default'): Promise<MetaApiClient> {
   const { prisma } = await import('@/services/db/client')
-  const settings = await prisma.workspace.findUnique({ where: { id: workspaceId } })
+  const settings = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { metaToken: true },
+  })
   if (!settings?.metaToken) {
     throw new Error('Token Meta não configurado. Acesse Configurações para adicionar seu token.')
   }
