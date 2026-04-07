@@ -41,9 +41,10 @@ export interface CampaignInsight {
 }
 
 export interface MetaCampaign {
-  id:     string
-  name:   string
-  status: string
+  id:               string
+  name:             string
+  status:           string
+  effective_status?: string
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -183,8 +184,9 @@ export async function getCampaignsList({ workspaceId }: { workspaceId?: string }
 
   type CampaignsResp = { data: MetaCampaign[] }
   const resp = await client.get<CampaignsResp>(`${accountId}/campaigns`, {
-    fields: 'id,name,status',
-    limit:  '200',
+    fields:           'id,name,status,effective_status',
+    limit:            '500',
+    effective_status: JSON.stringify(['ACTIVE', 'PAUSED', 'ARCHIVED', 'IN_PROCESS', 'WITH_ISSUES']),
   })
 
   return (resp.data ?? []).sort((a, b) => a.name.localeCompare(b.name))

@@ -38,7 +38,7 @@ interface MetricDef {
   getValue: (d: AggregatedData) => number
 }
 
-interface MetaCampaign { id: string; name: string; status: string }
+interface MetaCampaign { id: string; name: string; status: string; effective_status?: string }
 type SortDir = 'asc' | 'desc'
 
 // ── All available metrics ─────────────────────────────────────────────────────
@@ -204,10 +204,11 @@ function CampaignFilter({
 
   const filtered = campaigns.filter(c => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase())
+    const effStatus = c.effective_status ?? c.status
     const matchStatus =
       statusFilter === 'all'      ? true :
-      statusFilter === 'active'   ? c.status === 'ACTIVE' :
-                                    c.status !== 'ACTIVE'
+      statusFilter === 'active'   ? effStatus === 'ACTIVE' :
+                                    effStatus !== 'ACTIVE'
     return matchSearch && matchStatus
   })
 
@@ -306,8 +307,8 @@ function CampaignFilter({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-200 truncate">{c.name}</p>
-                  <p className={`text-[10px] ${c.status === 'ACTIVE' ? 'text-emerald-400' : 'text-gray-500'}`}>
-                    {c.status === 'ACTIVE' ? 'Ativa' : 'Pausada'}
+                  <p className={`text-[10px] ${(c.effective_status ?? c.status) === 'ACTIVE' ? 'text-emerald-400' : 'text-gray-500'}`}>
+                    {(c.effective_status ?? c.status) === 'ACTIVE' ? 'Ativa' : (c.effective_status ?? c.status) === 'PAUSED' ? 'Pausada' : (c.effective_status ?? c.status)}
                   </p>
                 </div>
               </button>
