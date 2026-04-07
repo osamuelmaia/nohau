@@ -7,12 +7,13 @@ import {
   Calendar, ChevronDown, Check, Loader2, GripVertical,
   Plus, X, ArrowUpDown, ArrowUp, ArrowDown, LayoutDashboard,
   TableProperties, AlertCircle, Settings2, Search,
-  AlertTriangle, Download, TrendingDown, Minus,
+  AlertTriangle, Download, TrendingDown, Minus, Clock,
 } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer,
 } from 'recharts'
+import TimeBreakdown from '@/components/dashboard/TimeBreakdown'
 import toast from 'react-hot-toast'
 import type { CampaignInsight } from '@/services/meta/insights'
 
@@ -761,7 +762,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
   const workspaceId = params.workspaceId
 
   // ── Tabs & filters ─────────────────────────────────────────────────────────
-  const [tab,        setTab]        = useState<'overview' | 'daily'>('overview')
+  const [tab,        setTab]        = useState<'overview' | 'daily' | 'breakdown'>('overview')
   const [startDate,  setStartDate]  = useState(daysAgo(29))
   const [endDate,    setEndDate]    = useState(today())
   const [activePreset, setPreset]   = useState('30 dias')
@@ -953,8 +954,9 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
         {/* ── Tabs ────────────────────────────────────────────────────────── */}
         <div className="flex gap-1 p-1 bg-surface-800 rounded-xl w-fit">
           {[
-            { id: 'overview', label: 'Visão Geral',        icon: LayoutDashboard },
-            { id: 'daily',    label: 'Desempenho Diário',  icon: TableProperties },
+            { id: 'overview',   label: 'Visão Geral',        icon: LayoutDashboard },
+            { id: 'daily',      label: 'Desempenho Diário',  icon: TableProperties },
+            { id: 'breakdown',  label: 'Horários & Dias',    icon: Clock           },
           ].map(t => (
             <button
               key={t.id}
@@ -1203,6 +1205,18 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
             )}
           </div>
           </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* TAB: HORÁRIOS & DIAS                                              */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {tab === 'breakdown' && (
+          <TimeBreakdown
+            workspaceId={workspaceId}
+            startDate={startDate}
+            endDate={endDate}
+            campaignIds={selectedIds}
+          />
         )}
       </div>
 
