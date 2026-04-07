@@ -46,7 +46,7 @@ function makeClient(serviceAccountJson: string) {
   return new BetaAnalyticsDataClient({ credentials })
 }
 
-function safeNum(v: string | undefined) {
+function safeNum(v: string | null | undefined) {
   const n = parseFloat(v ?? '0')
   return isNaN(n) ? 0 : n
 }
