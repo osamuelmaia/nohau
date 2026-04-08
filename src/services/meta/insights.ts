@@ -50,11 +50,17 @@ export interface MetaCampaign {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 type MetaAction = { action_type: string; value: string }
 
-function sumActions(actions: MetaAction[], types: string[]): number {
-  return types.reduce((sum, t) => {
+// sumActions was tripling counts: purchase + offsite_conversion.fb_pixel_purchase + omni_purchase
+// are the SAME event reported under different keys. Use first non-zero match instead.
+function pickAction(actions: MetaAction[], types: string[]): number {
+  for (const t of types) {
     const found = actions.find(a => a.action_type === t)
-    return sum + (found ? parseFloat(found.value) : 0)
-  }, 0)
+    if (found) {
+      const v = parseFloat(found.value)
+      if (v > 0) return v
+    }
+  }
+  return 0
 }
 
 async function getClientAndAccount(workspaceId = 'default') {
@@ -124,23 +130,25 @@ export async function getInsights(params: InsightsParams): Promise<CampaignInsig
     const actions      = row.actions ?? []
     const actionValues = row.action_values ?? []
 
-    const purchases = sumActions(actions, [
-      'purchase',
+    // Priority order: most specific pixel event first, then omni, then generic.
+    // Never add them together — they report the same conversions under different keys.
+    const purchases = pickAction(actions, [
       'offsite_conversion.fb_pixel_purchase',
       'omni_purchase',
+      'purchase',
     ])
-    const leads = sumActions(actions, [
-      'lead',
+    const leads = pickAction(actions, [
       'offsite_conversion.fb_pixel_lead',
       'onsite_conversion.lead_grouped',
+      'lead',
     ])
-    const initiateCheckout = sumActions(actions, [
-      'initiate_checkout',
+    const initiateCheckout = pickAction(actions, [
       'offsite_conversion.fb_pixel_initiate_checkout',
+      'initiate_checkout',
     ])
 
-    const revenue          = sumActions(actionValues, ['purchase', 'offsite_conversion.fb_pixel_purchase', 'omni_purchase'])
-    const landingPageViews = sumActions(actions, ['landing_page_view'])
+    const revenue          = pickAction(actionValues, ['offsite_conversion.fb_pixel_purchase', 'omni_purchase', 'purchase'])
+    const landingPageViews = pickAction(actions, ['landing_page_view'])
 
     const spend       = parseFloat(row.spend       || '0')
     const impressions = parseInt(row.impressions   || '0')
