@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   DollarSign, ShoppingCart, TrendingUp, Users, Target,
   BarChart2, MousePointerClick, RefreshCw, Eye, Activity,
-  Calendar, ChevronDown, Check, Loader2, GripVertical,
+  ChevronDown, Check, Loader2, GripVertical,
   Plus, X, ArrowUpDown, ArrowUp, ArrowDown, LayoutDashboard,
   TableProperties, AlertCircle, Settings2, Search,
   AlertTriangle, Download, TrendingDown, Minus, Clock, BarChart3, FileText, ImageIcon,
@@ -14,8 +14,9 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer,
 } from 'recharts'
-import TimeBreakdown from '@/components/dashboard/TimeBreakdown'
-import GA4Section    from '@/components/dashboard/GA4Section'
+import TimeBreakdown    from '@/components/dashboard/TimeBreakdown'
+import GA4Section       from '@/components/dashboard/GA4Section'
+import DateRangePicker  from '@/components/DateRangePicker'
 import toast from 'react-hot-toast'
 import type { CampaignInsight } from '@/services/meta/insights'
 import type { AdInsight } from '@/services/meta/creatives'
@@ -83,13 +84,6 @@ function getPreviousPeriod(start: string, end: string): { start: string; end: st
   const prevStart = new Date(prevEnd.getTime() - (days - 1) * 86400000)
   return { start: toYMD(prevStart), end: toYMD(prevEnd) }
 }
-
-const PRESETS = [
-  { label: 'Hoje',      start: () => today(),        end: () => today()   },
-  { label: '7 dias',    start: () => daysAgo(6),     end: () => today()   },
-  { label: '30 dias',   start: () => daysAgo(29),    end: () => today()   },
-  { label: 'Este mês',  start: () => startOfMonth(), end: () => today()   },
-]
 
 // ── Number formatters ─────────────────────────────────────────────────────────
 const fmtCurrency = (v: number) =>
@@ -915,12 +909,6 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
   }, [tab, fetchCreatives])
 
   // ── Preset picker ──────────────────────────────────────────────────────────
-  const applyPreset = (preset: typeof PRESETS[0]) => {
-    setStartDate(preset.start())
-    setEndDate(preset.end())
-    setPreset(preset.label)
-  }
-
   // ── Drag and drop ──────────────────────────────────────────────────────────
   const handleDragStart = (id: string) => setDraggedId(id)
   const handleDragOver  = (e: React.DragEvent, id: string) => { e.preventDefault(); setDragOverId(id) }
@@ -1020,39 +1008,17 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
 
         {/* ── Filters ─────────────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-3">
-          {/* Date presets */}
-          <div className="flex gap-1 p-1 bg-surface-800 border border-surface-700 rounded-xl">
-            {PRESETS.map(p => (
-              <button
-                key={p.label}
-                onClick={() => applyPreset(p)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  activePreset === p.label
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-gray-500 hover:text-gray-300'
-                }`}>
-                {p.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Custom date range */}
-          <div className="flex items-center gap-2 px-3 py-2 bg-surface-800 border border-surface-700 rounded-xl">
-            <Calendar className="w-4 h-4 text-gray-500" />
-            <input
-              type="date"
-              value={startDate}
-              onChange={e => { setStartDate(e.target.value); setPreset('') }}
-              className="bg-transparent text-sm text-gray-300 outline-none w-32"
-            />
-            <span className="text-gray-600">→</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={e => { setEndDate(e.target.value); setPreset('') }}
-              className="bg-transparent text-sm text-gray-300 outline-none w-32"
-            />
-          </div>
+          {/* Date range picker */}
+          <DateRangePicker
+            startDate={startDate}
+            endDate={endDate}
+            activePreset={activePreset}
+            onChange={(s, e, p) => {
+              setStartDate(s)
+              setEndDate(e)
+              setPreset(p ?? '')
+            }}
+          />
 
           {/* Campaign filter */}
           <CampaignFilter

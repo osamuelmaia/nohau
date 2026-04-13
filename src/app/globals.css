@@ -89,3 +89,38 @@
     @apply bg-surface-800 text-gray-100;
   }
 }
+
+/* ── react-day-picker dark theme ───────────────────────────────────────────── */
+.nohau-range-start,
+.nohau-range-end {
+  background: rgba(79, 70, 229, 0.18);
+}
+.nohau-range-start {
+  border-radius: 9999px 0 0 9999px;
+}
+.nohau-range-end {
+  border-radius: 0 9999px 9999px 0;
+}
+.nohau-range-start.nohau-range-end {
+  border-radius: 9999px;
+  background: transparent;
+}
+.nohau-range-middle {
+  background: rgba(79, 70, 229, 0.18);
+}
+.nohau-range-start button,
+.nohau-range-end button,
+.nohau-selected button {
+  background-color: #4f46e5 !important;
+  color: white !important;
+  border-radius: 9999px !important;
+}
+.nohau-range-middle button {
+  background: transparent !important;
+  color: #a5b4fc !important;
+  border-radius: 0 !important;
+}
+.nohau-today button {
+  color: #818cf8 !important;
+  font-weight: 700;
+}
