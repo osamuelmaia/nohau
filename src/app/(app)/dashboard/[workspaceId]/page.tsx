@@ -108,13 +108,13 @@ function formatValue(value: number, format: MetricDef['format']) {
 }
 
 // ── Export CSV ────────────────────────────────────────────────────────────────
-function exportCSV(rows: (AggregatedData & { date: string })[]) {
+function exportCSV(rows: CampaignInsight[]) {
   const headers = ['Data','Investido','Compras','Tx Conv. Compra','Leads','Tx Conv. Lead','CPM','CTR','Frequência','Alcance','Impressões','Receita','ROAS','LP Views','Taxa Conexão']
   const escape  = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`
   const lines   = [
     headers.join(','),
     ...rows.map(r => [
-      r.date,
+      r.date ?? '',
       r.spend.toFixed(2),
       r.purchases,
       r.purchaseRate.toFixed(2),
@@ -914,23 +914,8 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
     else { setSortKey(key); setSortDir('desc') }
   }
 
-  // Group daily rows by date, aggregate metrics per day
-  const dailyByDate: (AggregatedData & { date: string })[] = (() => {
-    const map = new Map<string, CampaignInsight[]>()
-    for (const row of daily) {
-      const d = row.date ?? ''
-      if (!map.has(d)) map.set(d, [])
-      map.get(d)!.push(row)
-    }
-    const result: (AggregatedData & { date: string })[] = []
-    map.forEach((rows, date) => {
-      const agg = aggregate(rows)
-      if (agg) result.push({ ...agg, date })
-    })
-    return result
-  })()
-
-  const sortedDaily = [...dailyByDate].sort((a, b) => {
+  // API already returns one row per date (aggregated server-side)
+  const sortedDaily = [...daily].sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1
     const va = (a as unknown as Record<string, unknown>)[sortKey]
     const vb = (b as unknown as Record<string, unknown>)[sortKey]
