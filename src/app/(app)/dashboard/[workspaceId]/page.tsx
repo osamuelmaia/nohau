@@ -7,7 +7,7 @@ import {
   Calendar, ChevronDown, Check, Loader2, GripVertical,
   Plus, X, ArrowUpDown, ArrowUp, ArrowDown, LayoutDashboard,
   TableProperties, AlertCircle, Settings2, Search,
-  AlertTriangle, Download, TrendingDown, Minus, Clock, BarChart3, FileText,
+  AlertTriangle, Download, TrendingDown, Minus, Clock, BarChart3, FileText, ImageIcon,
 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -18,6 +18,7 @@ import TimeBreakdown from '@/components/dashboard/TimeBreakdown'
 import GA4Section    from '@/components/dashboard/GA4Section'
 import toast from 'react-hot-toast'
 import type { CampaignInsight } from '@/services/meta/insights'
+import type { AdInsight } from '@/services/meta/creatives'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface AggregatedData {
@@ -764,7 +765,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
   const workspaceId = params.workspaceId
 
   // ── Tabs & filters ─────────────────────────────────────────────────────────
-  const [tab,        setTab]        = useState<'overview' | 'daily' | 'breakdown' | 'analytics'>('overview')
+  const [tab,        setTab]        = useState<'overview' | 'daily' | 'breakdown' | 'analytics' | 'creatives'>('overview')
   const [startDate,  setStartDate]  = useState(daysAgo(29))
   const [endDate,    setEndDate]    = useState(today())
   const [activePreset, setPreset]   = useState('30 dias')
@@ -772,9 +773,14 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   // ── Data ───────────────────────────────────────────────────────────────────
-  const [insights,     setInsights]     = useState<CampaignInsight[]>([])
-  const [daily,        setDaily]        = useState<CampaignInsight[]>([])
-  const [prevOverview, setPrevOverview] = useState<AggregatedData | null>(null)
+  const [insights,         setInsights]         = useState<CampaignInsight[]>([])
+  const [daily,            setDaily]            = useState<CampaignInsight[]>([])
+  const [prevOverview,     setPrevOverview]     = useState<AggregatedData | null>(null)
+  const [creatives,        setCreatives]        = useState<AdInsight[]>([])
+  const [creativesLoading, setCreativesLoading] = useState(false)
+  const [creativesError,   setCreativesError]   = useState<string | null>(null)
+  const [creativeSortKey,  setCreativeSortKey]  = useState('spend')
+  const [creativeSortDir,  setCreativeSortDir]  = useState<SortDir>('desc')
   const [loading,    setLoading]    = useState(false)
   const [error,      setError]      = useState<string | null>(null)
 
@@ -882,6 +888,32 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
 
   useEffect(() => { fetchData() }, [fetchData])
 
+  // ── Fetch creatives (lazy — only when tab is active) ──────────────────────
+  const fetchCreatives = useCallback(async () => {
+    setCreativesLoading(true)
+    setCreativesError(null)
+    try {
+      const params = new URLSearchParams({
+        startDate, endDate, workspaceId,
+        ...(selectedIds.length ? { campaignIds: selectedIds.join(',') } : {}),
+      })
+      const res  = await fetch(`/api/meta/creatives?${params}`)
+      const json = await res.json()
+      if (!json.success) throw new Error(json.error)
+      setCreatives(json.data)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erro ao carregar criativos'
+      setCreativesError(msg)
+      toast.error(msg)
+    } finally {
+      setCreativesLoading(false)
+    }
+  }, [startDate, endDate, selectedIds, workspaceId])
+
+  useEffect(() => {
+    if (tab === 'creatives') fetchCreatives()
+  }, [tab, fetchCreatives])
+
   // ── Preset picker ──────────────────────────────────────────────────────────
   const applyPreset = (preset: typeof PRESETS[0]) => {
     setStartDate(preset.start())
@@ -968,6 +1000,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
           {[
             { id: 'overview',   label: 'Visão Geral',        icon: LayoutDashboard },
             { id: 'daily',      label: 'Desempenho Diário',  icon: TableProperties },
+            { id: 'creatives',  label: 'Criativos',          icon: ImageIcon       },
             { id: 'breakdown',  label: 'Horários & Dias',    icon: Clock           },
             { id: 'analytics',  label: 'Google Analytics',   icon: BarChart3       },
           ].map(t => (
@@ -1150,17 +1183,22 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                 <table className="w-full text-sm">
                   <thead className="border-b border-surface-700 bg-surface-750">
                     <tr>
-                      <Th label="Data"           sortKey="date"            currentKey={sortKey} dir={sortDir} onSort={handleSort} />
-                      <Th label="Investido"       sortKey="spend"          currentKey={sortKey} dir={sortDir} onSort={handleSort} />
-                      <Th label="Compras"         sortKey="purchases"      currentKey={sortKey} dir={sortDir} onSort={handleSort} />
-                      <Th label="Tx Conv. Compra" sortKey="purchaseRate"   currentKey={sortKey} dir={sortDir} onSort={handleSort} />
-                      <Th label="Leads"           sortKey="leads"          currentKey={sortKey} dir={sortDir} onSort={handleSort} />
-                      <Th label="Tx Conv. Lead"   sortKey="leadRate"       currentKey={sortKey} dir={sortDir} onSort={handleSort} />
-                      <Th label="CPM"             sortKey="cpm"            currentKey={sortKey} dir={sortDir} onSort={handleSort} />
-                      <Th label="CTR"             sortKey="ctr"            currentKey={sortKey} dir={sortDir} onSort={handleSort} />
-                      <Th label="Frequência"      sortKey="frequency"      currentKey={sortKey} dir={sortDir} onSort={handleSort} />
-                      <Th label="Alcance"         sortKey="reach"          currentKey={sortKey} dir={sortDir} onSort={handleSort} />
-                      <Th label="Impressões"      sortKey="impressions"    currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <Th label="Data"           sortKey="date"                    currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <Th label="Investido"       sortKey="spend"                  currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <Th label="ROAS"            sortKey="roas"                   currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <Th label="Receita"         sortKey="revenue"                currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <Th label="Compras"         sortKey="purchases"              currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <Th label="Custo/Compra"    sortKey="costPerPurchase"        currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <Th label="Tx Conv."        sortKey="purchaseRate"           currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <Th label="Leads"           sortKey="leads"                  currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <Th label="Custo/Lead"      sortKey="costPerLead"            currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <Th label="Tx Conv. Lead"   sortKey="leadRate"               currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <Th label="CPC"             sortKey="cpc"                    currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <Th label="CPM"             sortKey="cpm"                    currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <Th label="CTR"             sortKey="ctr"                    currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <Th label="Frequência"      sortKey="frequency"              currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <Th label="Alcance"         sortKey="reach"                  currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <Th label="Impressões"      sortKey="impressions"            currentKey={sortKey} dir={sortDir} onSort={handleSort} />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-700/50">
@@ -1171,13 +1209,16 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                             ? new Date(row.date + 'T00:00:00').toLocaleDateString('pt-BR')
                             : '—'}
                         </td>
-                        <td className="px-4 py-3 text-emerald-400 font-medium whitespace-nowrap">
-                          {fmtCurrency(row.spend)}
-                        </td>
+                        <td className="px-4 py-3 text-emerald-400 font-medium whitespace-nowrap">{fmtCurrency(row.spend)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtDecimal(row.roas)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtCurrency(row.revenue)}</td>
                         <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtNumber(row.purchases)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{row.costPerPurchase > 0 ? fmtCurrency(row.costPerPurchase) : '—'}</td>
                         <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtPercent(row.purchaseRate)}</td>
                         <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtNumber(row.leads)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{row.costPerLead > 0 ? fmtCurrency(row.costPerLead) : '—'}</td>
                         <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtPercent(row.leadRate)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtCurrency(row.cpc)}</td>
                         <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtCurrency(row.cpm)}</td>
                         <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtPercent(row.ctr)}</td>
                         <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtDecimal(row.frequency)}</td>
@@ -1196,10 +1237,15 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                         <tr>
                           <td className="px-4 py-3 text-xs font-bold text-gray-400">TOTAL</td>
                           <td className="px-4 py-3 text-emerald-400 font-bold whitespace-nowrap">{fmtCurrency(t.spend)}</td>
+                          <td className="px-4 py-3 text-gray-200 font-bold whitespace-nowrap">{fmtDecimal(t.roas)}</td>
+                          <td className="px-4 py-3 text-gray-200 font-bold whitespace-nowrap">{fmtCurrency(t.revenue)}</td>
                           <td className="px-4 py-3 text-gray-200 font-bold whitespace-nowrap">{fmtNumber(t.purchases)}</td>
+                          <td className="px-4 py-3 text-gray-200 font-bold whitespace-nowrap">{t.costPerPurchase > 0 ? fmtCurrency(t.costPerPurchase) : '—'}</td>
                           <td className="px-4 py-3 text-gray-200 font-bold whitespace-nowrap">{fmtPercent(t.purchaseRate)}</td>
                           <td className="px-4 py-3 text-gray-200 font-bold whitespace-nowrap">{fmtNumber(t.leads)}</td>
+                          <td className="px-4 py-3 text-gray-200 font-bold whitespace-nowrap">{t.costPerLead > 0 ? fmtCurrency(t.costPerLead) : '—'}</td>
                           <td className="px-4 py-3 text-gray-200 font-bold whitespace-nowrap">{fmtPercent(t.leadRate)}</td>
+                          <td className="px-4 py-3 text-gray-200 font-bold whitespace-nowrap">{fmtCurrency(t.cpc)}</td>
                           <td className="px-4 py-3 text-gray-200 font-bold whitespace-nowrap">{fmtCurrency(t.cpm)}</td>
                           <td className="px-4 py-3 text-gray-200 font-bold whitespace-nowrap">{fmtPercent(t.ctr)}</td>
                           <td className="px-4 py-3 text-gray-200 font-bold whitespace-nowrap">{fmtDecimal(t.frequency)}</td>
@@ -1213,6 +1259,113 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
               </div>
             )}
           </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* TAB: CRIATIVOS                                                    */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {tab === 'creatives' && (
+          <div className="bg-surface-800 border border-surface-700 rounded-2xl overflow-hidden">
+            {creativesLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+              </div>
+            ) : creativesError ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <AlertCircle className="w-8 h-8 text-red-400" />
+                <p className="text-sm text-red-400">{creativesError}</p>
+                <button onClick={fetchCreatives} className="text-xs text-indigo-400 hover:underline">Tentar novamente</button>
+              </div>
+            ) : creatives.length === 0 ? (
+              <div className="text-center py-16 text-gray-500">
+                <ImageIcon className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">Nenhum criativo encontrado para o período selecionado.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="border-b border-surface-700 bg-surface-750">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 w-16">Preview</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Criativo</th>
+                      {([
+                        ['spend',            'Investido'],
+                        ['roas',             'ROAS'],
+                        ['revenue',          'Receita'],
+                        ['purchases',        'Compras'],
+                        ['costPerPurchase',  'Custo/Compra'],
+                        ['purchaseRate',     'Tx Conv.'],
+                        ['leads',            'Leads'],
+                        ['costPerLead',      'Custo/Lead'],
+                        ['leadRate',         'Tx Conv. Lead'],
+                        ['cpc',              'CPC'],
+                        ['cpm',              'CPM'],
+                        ['ctr',              'CTR'],
+                        ['frequency',        'Freq.'],
+                        ['impressions',      'Impressões'],
+                        ['reach',            'Alcance'],
+                      ] as [string, string][]).map(([key, label]) => (
+                        <Th key={key} label={label} sortKey={key}
+                          currentKey={creativeSortKey} dir={creativeSortDir}
+                          onSort={k => {
+                            if (k === creativeSortKey) setCreativeSortDir(d => d === 'asc' ? 'desc' : 'asc')
+                            else { setCreativeSortKey(k); setCreativeSortDir('desc') }
+                          }} />
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-700/50">
+                    {[...creatives].sort((a, b) => {
+                      const dir = creativeSortDir === 'asc' ? 1 : -1
+                      const va = (a as unknown as Record<string, unknown>)[creativeSortKey]
+                      const vb = (b as unknown as Record<string, unknown>)[creativeSortKey]
+                      return (Number(va ?? 0) - Number(vb ?? 0)) * dir
+                    }).map((row, i) => (
+                      <tr key={i} className="hover:bg-surface-750/50 transition-colors">
+                        {/* Thumbnail */}
+                        <td className="px-4 py-2">
+                          {row.thumbnailUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={row.thumbnailUrl}
+                              alt=""
+                              className="w-12 h-12 object-cover rounded-lg bg-surface-700"
+                              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-lg bg-surface-700 flex items-center justify-center">
+                              <ImageIcon className="w-5 h-5 text-gray-600" />
+                            </div>
+                          )}
+                        </td>
+                        {/* Name + campaign */}
+                        <td className="px-4 py-2 max-w-[220px]">
+                          <p className="text-gray-200 text-sm truncate font-medium" title={row.adName}>{row.adName}</p>
+                          <p className="text-gray-500 text-xs truncate mt-0.5" title={row.campaignName}>{row.campaignName}</p>
+                        </td>
+                        {/* Metrics */}
+                        <td className="px-4 py-3 text-emerald-400 font-medium whitespace-nowrap">{fmtCurrency(row.spend)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtDecimal(row.roas)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtCurrency(row.revenue)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtNumber(row.purchases)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{row.costPerPurchase > 0 ? fmtCurrency(row.costPerPurchase) : '—'}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtPercent(row.purchaseRate)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtNumber(row.leads)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{row.costPerLead > 0 ? fmtCurrency(row.costPerLead) : '—'}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtPercent(row.leadRate)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtCurrency(row.cpc)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtCurrency(row.cpm)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtPercent(row.ctr)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtDecimal(row.frequency)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtNumber(row.impressions)}</td>
+                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtNumber(row.reach)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
