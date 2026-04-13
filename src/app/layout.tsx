@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Zima Ads Manager',
+  title: 'Nohau Ads Manager',
   description: 'Painel interno de criação e envio de campanhas para o Meta Ads',
 }
 

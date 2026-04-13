@@ -200,7 +200,7 @@ export async function POST(req: NextRequest) {
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { after: 60 },
-      children: [new TextRun({ text: youtuberName ?? 'Gerado por Zima Ads', size: 28, bold: true, color: '1E293B', font: 'Arial' })],
+      children: [new TextRun({ text: youtuberName ?? 'Gerado por Nohau', size: 28, bold: true, color: '1E293B', font: 'Arial' })],
     }),
   ]
 

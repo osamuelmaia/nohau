@@ -2,7 +2,7 @@
 // Application Constants
 // ============================================================
 
-export const APP_NAME = 'Zima Ads Manager'
+export const APP_NAME = 'Nohau Ads Manager'
 export const APP_VERSION = '1.0.0'
 
 // ---- Meta API ----

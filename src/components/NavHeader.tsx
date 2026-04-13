@@ -41,7 +41,7 @@ export default function NavHeader() {
           <div className="w-7 h-7 rounded-lg bg-gradient-brand flex items-center justify-center">
             <Zap className="w-3.5 h-3.5 text-white" />
           </div>
-          <span className="font-bold text-sm text-white tracking-tight">Zima Ads</span>
+          <span className="font-bold text-sm text-white tracking-tight">Nohau</span>
         </Link>
         {/* Workspace switcher — only on dashboard routes */}
         {workspaceMatch && <WorkspaceSwitcher currentId={workspaceId} />}

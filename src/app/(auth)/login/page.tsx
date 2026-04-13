@@ -45,7 +45,7 @@ export default function LoginPage() {
           <div className="w-16 h-16 rounded-2xl bg-gradient-brand flex items-center justify-center mb-4 shadow-lg shadow-brand-900/40">
             <Zap className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">Zima Ads Manager</h1>
+          <h1 className="text-2xl font-bold text-white">Nohau Ads Manager</h1>
           <p className="text-sm text-gray-500 mt-1">Painel interno de campanhas Meta Ads</p>
         </div>
 
