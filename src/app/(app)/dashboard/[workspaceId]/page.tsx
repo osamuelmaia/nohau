@@ -108,14 +108,13 @@ function formatValue(value: number, format: MetricDef['format']) {
 }
 
 // ── Export CSV ────────────────────────────────────────────────────────────────
-function exportCSV(rows: CampaignInsight[]) {
-  const headers = ['Data','Campanha','Investido','Compras','Tx Conv. Compra','Leads','Tx Conv. Lead','CPM','CTR','Frequência','Alcance','Impressões','Receita','ROAS','LP Views','Taxa Conexão']
+function exportCSV(rows: (AggregatedData & { date: string })[]) {
+  const headers = ['Data','Investido','Compras','Tx Conv. Compra','Leads','Tx Conv. Lead','CPM','CTR','Frequência','Alcance','Impressões','Receita','ROAS','LP Views','Taxa Conexão']
   const escape  = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`
   const lines   = [
     headers.join(','),
     ...rows.map(r => [
-      r.date ?? '',
-      r.campaignName,
+      r.date,
       r.spend.toFixed(2),
       r.purchases,
       r.purchaseRate.toFixed(2),
@@ -915,7 +914,23 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
     else { setSortKey(key); setSortDir('desc') }
   }
 
-  const sortedDaily = [...daily].sort((a, b) => {
+  // Group daily rows by date, aggregate metrics per day
+  const dailyByDate: (AggregatedData & { date: string })[] = (() => {
+    const map = new Map<string, CampaignInsight[]>()
+    for (const row of daily) {
+      const d = row.date ?? ''
+      if (!map.has(d)) map.set(d, [])
+      map.get(d)!.push(row)
+    }
+    const result: (AggregatedData & { date: string })[] = []
+    map.forEach((rows, date) => {
+      const agg = aggregate(rows)
+      if (agg) result.push({ ...agg, date })
+    })
+    return result
+  })()
+
+  const sortedDaily = [...dailyByDate].sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1
     const va = (a as unknown as Record<string, unknown>)[sortKey]
     const vb = (b as unknown as Record<string, unknown>)[sortKey]
@@ -1151,7 +1166,6 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                   <thead className="border-b border-surface-700 bg-surface-750">
                     <tr>
                       <Th label="Data"           sortKey="date"            currentKey={sortKey} dir={sortDir} onSort={handleSort} />
-                      <Th label="Campanha"        sortKey="campaignName"   currentKey={sortKey} dir={sortDir} onSort={handleSort} />
                       <Th label="Investido"       sortKey="spend"          currentKey={sortKey} dir={sortDir} onSort={handleSort} />
                       <Th label="Compras"         sortKey="purchases"      currentKey={sortKey} dir={sortDir} onSort={handleSort} />
                       <Th label="Tx Conv. Compra" sortKey="purchaseRate"   currentKey={sortKey} dir={sortDir} onSort={handleSort} />
@@ -1172,9 +1186,6 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                             ? new Date(row.date + 'T00:00:00').toLocaleDateString('pt-BR')
                             : '—'}
                         </td>
-                        <td className="px-4 py-3 text-gray-200 max-w-[200px]">
-                          <span className="block truncate" title={row.campaignName}>{row.campaignName}</span>
-                        </td>
                         <td className="px-4 py-3 text-emerald-400 font-medium whitespace-nowrap">
                           {fmtCurrency(row.spend)}
                         </td>
@@ -1193,12 +1204,12 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
 
                   {/* Totals row */}
                   {(() => {
-                    const t = aggregate(sortedDaily)
+                    const t = aggregate(daily)
                     if (!t) return null
                     return (
                       <tfoot className="border-t-2 border-surface-600 bg-surface-750">
                         <tr>
-                          <td className="px-4 py-3 text-xs font-bold text-gray-400" colSpan={2}>TOTAL</td>
+                          <td className="px-4 py-3 text-xs font-bold text-gray-400">TOTAL</td>
                           <td className="px-4 py-3 text-emerald-400 font-bold whitespace-nowrap">{fmtCurrency(t.spend)}</td>
                           <td className="px-4 py-3 text-gray-200 font-bold whitespace-nowrap">{fmtNumber(t.purchases)}</td>
                           <td className="px-4 py-3 text-gray-200 font-bold whitespace-nowrap">{fmtPercent(t.purchaseRate)}</td>
