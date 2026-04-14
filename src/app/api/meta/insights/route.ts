@@ -17,6 +17,7 @@ function aggregateByDate(rows: CampaignInsight[]): CampaignInsight[] {
     const impressions = dateRows.reduce((s, r) => s + r.impressions,      0)
     const reach       = dateRows.reduce((s, r) => s + r.reach,            0)
     const clicks      = dateRows.reduce((s, r) => s + r.clicks,           0)
+    const linkClicks  = dateRows.reduce((s, r) => s + r.linkClicks,       0)
     const purchases   = dateRows.reduce((s, r) => s + r.purchases,        0)
     const leads       = dateRows.reduce((s, r) => s + r.leads,            0)
     const initiateCheckout = dateRows.reduce((s, r) => s + r.initiateCheckout, 0)
@@ -33,6 +34,7 @@ function aggregateByDate(rows: CampaignInsight[]): CampaignInsight[] {
       impressions,
       reach,
       clicks,
+      linkClicks,
       ctr:          impressions > 0 ? (clicks / impressions) * 100 : 0,
       cpm:          impressions > 0 ? (spend / impressions) * 1000 : 0,
       frequency,

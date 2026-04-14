@@ -22,6 +22,7 @@ export interface CampaignInsight {
   impressions:  number
   reach:        number
   clicks:       number
+  linkClicks:   number   // inline_link_clicks (cliques no link)
   ctr:          number   // as percentage (e.g. 2.5 = 2.5%)
   cpm:          number   // in account currency
   frequency:    number
@@ -85,7 +86,7 @@ export async function getInsights(params: InsightsParams): Promise<CampaignInsig
 
   const fields = [
     'campaign_id', 'campaign_name',
-    'spend', 'impressions', 'reach', 'clicks',
+    'spend', 'impressions', 'reach', 'clicks', 'inline_link_clicks',
     'ctr', 'cpm', 'frequency',
     'actions', 'action_values',
   ].join(',')
@@ -108,13 +109,14 @@ export async function getInsights(params: InsightsParams): Promise<CampaignInsig
   }
 
   type MetaRow = {
-    campaign_id:   string
-    campaign_name: string
-    spend:         string
-    impressions:   string
-    reach:         string
-    clicks:        string
-    ctr:           string
+    campaign_id:         string
+    campaign_name:       string
+    spend:               string
+    impressions:         string
+    reach:               string
+    clicks:              string
+    inline_link_clicks?: string
+    ctr:                 string
     cpm:           string
     frequency:     string
     date_start?:          string
@@ -150,11 +152,12 @@ export async function getInsights(params: InsightsParams): Promise<CampaignInsig
     const revenue          = pickAction(actionValues, ['offsite_conversion.fb_pixel_purchase', 'omni_purchase', 'purchase'])
     const landingPageViews = pickAction(actions, ['landing_page_view'])
 
-    const spend       = parseFloat(row.spend       || '0')
-    const impressions = parseInt(row.impressions   || '0')
-    const reach       = parseInt(row.reach         || '0')
-    const clicks      = parseFloat(row.clicks      || '0')
-    const ctr         = parseFloat(row.ctr         || '0')
+    const spend      = parseFloat(row.spend              || '0')
+    const impressions = parseInt(row.impressions          || '0')
+    const reach       = parseInt(row.reach                || '0')
+    const clicks      = parseFloat(row.clicks             || '0')
+    const linkClicks  = parseInt(row.inline_link_clicks   || '0')
+    const ctr         = parseFloat(row.ctr                || '0')
     const cpm         = parseFloat(row.cpm         || '0')
     const frequency   = parseFloat(row.frequency   || '0')
 
@@ -166,6 +169,7 @@ export async function getInsights(params: InsightsParams): Promise<CampaignInsig
       impressions,
       reach,
       clicks,
+      linkClicks,
       ctr,
       cpm,
       frequency,
@@ -208,6 +212,7 @@ export function aggregateInsights(rows: CampaignInsight[]) {
   const impressions      = rows.reduce((s, r) => s + r.impressions,      0)
   const reach            = rows.reduce((s, r) => s + r.reach,            0)
   const clicks           = rows.reduce((s, r) => s + r.clicks,           0)
+  const linkClicks       = rows.reduce((s, r) => s + r.linkClicks,       0)
   const purchases        = rows.reduce((s, r) => s + r.purchases,        0)
   const leads            = rows.reduce((s, r) => s + r.leads,            0)
   const initiateCheckout = rows.reduce((s, r) => s + r.initiateCheckout, 0)
@@ -224,6 +229,7 @@ export function aggregateInsights(rows: CampaignInsight[]) {
     impressions,
     reach,
     clicks,
+    linkClicks,
     purchases,
     leads,
     initiateCheckout,

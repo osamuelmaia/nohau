@@ -24,7 +24,7 @@ import type { CreativeDetail } from '@/app/api/meta/creative-detail/route'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface AggregatedData {
-  spend: number; impressions: number; reach: number; clicks: number
+  spend: number; impressions: number; reach: number; clicks: number; linkClicks: number
   purchases: number; leads: number; initiateCheckout: number
   revenue: number; roas: number; landingPageViews: number; connectRate: number
   cpm: number; ctr: number; frequency: number
@@ -143,6 +143,7 @@ function aggregate(rows: CampaignInsight[]): AggregatedData | null {
   const impressions = rows.reduce((s, r) => s + r.impressions, 0)
   const reach       = rows.reduce((s, r) => s + r.reach,       0)
   const clicks      = rows.reduce((s, r) => s + r.clicks,      0)
+  const linkClicks  = rows.reduce((s, r) => s + r.linkClicks,  0)
   const purchases        = rows.reduce((s, r) => s + r.purchases,        0)
   const leads            = rows.reduce((s, r) => s + r.leads,            0)
   const initiateCheckout = rows.reduce((s, r) => s + r.initiateCheckout, 0)
@@ -152,7 +153,7 @@ function aggregate(rows: CampaignInsight[]): AggregatedData | null {
     ? rows.reduce((s, r) => s + r.frequency * r.impressions, 0) / impressions
     : 0
   return {
-    spend, impressions, reach, clicks, purchases, leads, initiateCheckout,
+    spend, impressions, reach, clicks, linkClicks, purchases, leads, initiateCheckout,
     revenue,
     roas:            spend > 0 ? revenue / spend : 0,
     landingPageViews,
@@ -507,8 +508,8 @@ function Th({ label, sortKey, currentKey, dir, onSort }: {
 // ── FunnelSection ─────────────────────────────────────────────────────────────
 function FunnelSection({ data }: { data: AggregatedData }) {
   const steps = [
-    { label: 'Impressões',       value: data.impressions      },
-    { label: 'Cliques',          value: data.clicks           },
+    { label: 'Alcance',          value: data.reach            },
+    { label: 'Cliques no link',  value: data.linkClicks       },
     { label: 'LP Views',         value: data.landingPageViews },
     { label: 'Iniciar Checkout', value: data.initiateCheckout },
     { label: 'Compras',          value: data.purchases        },
@@ -1044,19 +1045,28 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
             onChange={setSelectedIds}
           />
 
-          {/* Group toggle — only visible on Criativos tab */}
+          {/* Group toggle + CSV export — only visible on Criativos tab */}
           {tab === 'creatives' && (
-            <button
-              onClick={() => setGroupCreatives(g => !g)}
-              className={`ml-auto flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-colors
-                ${groupCreatives
-                  ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30'
-                  : 'bg-surface-800 text-gray-400 border-surface-700 hover:text-gray-200 hover:border-surface-600'
-                }`}
-            >
-              <Layers className="w-4 h-4" />
-              {groupCreatives ? 'Agrupado por nome' : 'Individual por conjunto'}
-            </button>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={() => setGroupCreatives(g => !g)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-colors
+                  ${groupCreatives
+                    ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30'
+                    : 'bg-surface-800 text-gray-400 border-surface-700 hover:text-gray-200 hover:border-surface-600'
+                  }`}
+              >
+                <Layers className="w-4 h-4" />
+                {groupCreatives ? 'Agrupado por nome' : 'Individual por conjunto'}
+              </button>
+              <button
+                id="creatives-csv-btn"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl border text-sm bg-surface-800 text-gray-400 border-surface-700 hover:text-gray-200 hover:border-surface-600 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                CSV
+              </button>
+            </div>
           )}
         </div>
 
@@ -1416,6 +1426,56 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
           const onSort = (k: string) => {
             if (k === creativeSortKey) setCreativeSortDir(d => d === 'asc' ? 'desc' : 'asc')
             else { setCreativeSortKey(k); setCreativeSortDir('desc') }
+          }
+
+          // Wire CSV button now that sortedRows is available
+          const csvBtn = document.getElementById('creatives-csv-btn')
+          if (csvBtn) {
+            (csvBtn as HTMLButtonElement).onclick = () => {
+              const headers = [
+                'Nome', 'Campanha', 'Conjunto',
+                'Investido', 'ROAS', 'Receita', 'Compras', 'Custo/Compra', 'Tx Conv. Compra',
+                'Leads', 'Custo/Lead', 'Tx Conv. Lead',
+                'CPC', 'CPM', 'CTR', 'Frequência', 'Alcance', 'Impressões', 'LP Views', 'Connect Rate',
+              ]
+              const esc = (v: string | number) => {
+                const s = String(v).replace(/"/g, '""')
+                return /[,"\n]/.test(s) ? `"${s}"` : s
+              }
+              const lines = [
+                headers.join(','),
+                ...sortedRows.map(r => [
+                  esc(r.adName),
+                  esc(r.campaignName),
+                  esc(r.adSetName ?? ''),
+                  r.spend.toFixed(2),
+                  r.roas.toFixed(2),
+                  r.revenue.toFixed(2),
+                  r.purchases,
+                  r.costPerPurchase > 0 ? r.costPerPurchase.toFixed(2) : '0',
+                  r.purchaseRate.toFixed(2),
+                  r.leads,
+                  r.costPerLead > 0 ? r.costPerLead.toFixed(2) : '0',
+                  r.leadRate.toFixed(2),
+                  r.cpc.toFixed(2),
+                  r.cpm.toFixed(2),
+                  r.ctr.toFixed(2),
+                  r.frequency.toFixed(2),
+                  r.reach,
+                  r.impressions,
+                  r.landingPageViews,
+                  r.connectRate.toFixed(2),
+                ].join(',')),
+              ].join('\n')
+
+              const blob = new Blob(['\uFEFF' + lines], { type: 'text/csv;charset=utf-8;' })
+              const url  = URL.createObjectURL(blob)
+              const a    = document.createElement('a')
+              a.href     = url
+              a.download = `criativos_${startDate}_${endDate}.csv`
+              a.click()
+              URL.revokeObjectURL(url)
+            }
           }
 
           return (
