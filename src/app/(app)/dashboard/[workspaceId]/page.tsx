@@ -1124,6 +1124,107 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                     <TopCampaigns rows={insights} />
                   </div>
                 )}
+
+                {/* ── Campaigns breakdown table ─────────────────────────── */}
+                {insights.length > 0 && (() => {
+                  // Aggregate insights by campaignId (overview call already returns
+                  // one row per campaign, but group just in case)
+                  const byId = new Map<string, typeof insights>()
+                  for (const r of insights) {
+                    if (!byId.has(r.campaignId)) byId.set(r.campaignId, [])
+                    byId.get(r.campaignId)!.push(r)
+                  }
+                  const rows = Array.from(byId.values()).map(rs => {
+                    const spend            = rs.reduce((s, r) => s + r.spend,            0)
+                    const impressions      = rs.reduce((s, r) => s + r.impressions,      0)
+                    const reach            = rs.reduce((s, r) => s + r.reach,            0)
+                    const clicks           = rs.reduce((s, r) => s + r.clicks,           0)
+                    const purchases        = rs.reduce((s, r) => s + r.purchases,        0)
+                    const leads            = rs.reduce((s, r) => s + r.leads,            0)
+                    const initiateCheckout = rs.reduce((s, r) => s + r.initiateCheckout, 0)
+                    const revenue          = rs.reduce((s, r) => s + r.revenue,          0)
+                    const landingPageViews = rs.reduce((s, r) => s + r.landingPageViews, 0)
+                    return {
+                      campaignId:   rs[0].campaignId,
+                      campaignName: rs[0].campaignName,
+                      spend, impressions, reach, clicks, purchases, leads,
+                      initiateCheckout, revenue, landingPageViews,
+                      roas:                    spend > 0            ? revenue / spend                    : 0,
+                      ctr:                     impressions > 0      ? (clicks / impressions) * 100       : 0,
+                      cpm:                     impressions > 0      ? (spend  / impressions) * 1000      : 0,
+                      frequency:               reach > 0            ? impressions / reach                : 0,
+                      connectRate:             clicks > 0           ? (landingPageViews / clicks) * 100  : 0,
+                      purchaseRate:            landingPageViews > 0 ? (purchases / landingPageViews) * 100 : 0,
+                      leadRate:                landingPageViews > 0 ? (leads     / landingPageViews) * 100 : 0,
+                      cpc:                     clicks > 0           ? spend / clicks                     : 0,
+                      costPerLead:             leads > 0            ? spend / leads                      : 0,
+                      costPerPurchase:         purchases > 0        ? spend / purchases                  : 0,
+                      costPerInitiateCheckout: initiateCheckout > 0 ? spend / initiateCheckout           : 0,
+                    }
+                  }).sort((a, b) => b.spend - a.spend)
+
+                  return (
+                    <div className="bg-surface-800 border border-surface-700 rounded-2xl overflow-hidden mt-2">
+                      <div className="px-5 py-3 border-b border-surface-700 flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-gray-200">Campanhas no Período</h3>
+                        <span className="text-xs text-gray-500">{rows.length} campanha{rows.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="border-b border-surface-700 bg-surface-750">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 min-w-[200px]">Campanha</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">Investido</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">ROAS</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">Receita</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">Compras</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">Custo/Compra</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">Tx Conv.</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">Leads</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">Custo/Lead</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">Tx Conv. Lead</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">CPC</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">CPM</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">CTR</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">Frequência</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">Alcance</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">Impressões</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-surface-700/50">
+                            {rows.map((row, i) => (
+                              <tr key={row.campaignId} className="hover:bg-surface-750/50 transition-colors">
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2.5">
+                                    <span className="text-[11px] font-medium text-gray-600 w-5 text-center flex-shrink-0">{i + 1}</span>
+                                    <span className="text-gray-200 text-sm font-medium truncate max-w-[280px]" title={row.campaignName}>
+                                      {row.campaignName}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-right text-emerald-400 font-medium whitespace-nowrap">{fmtCurrency(row.spend)}</td>
+                                <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{fmtDecimal(row.roas)}</td>
+                                <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{fmtCurrency(row.revenue)}</td>
+                                <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{fmtNumber(row.purchases)}</td>
+                                <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{row.costPerPurchase > 0 ? fmtCurrency(row.costPerPurchase) : '—'}</td>
+                                <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{fmtPercent(row.purchaseRate)}</td>
+                                <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{fmtNumber(row.leads)}</td>
+                                <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{row.costPerLead > 0 ? fmtCurrency(row.costPerLead) : '—'}</td>
+                                <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{fmtPercent(row.leadRate)}</td>
+                                <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{fmtCurrency(row.cpc)}</td>
+                                <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{fmtCurrency(row.cpm)}</td>
+                                <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{fmtPercent(row.ctr)}</td>
+                                <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{fmtDecimal(row.frequency)}</td>
+                                <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{fmtNumber(row.reach)}</td>
+                                <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{fmtNumber(row.impressions)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )
+                })()}
               </>
             )}
           </div>
