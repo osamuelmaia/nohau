@@ -1027,6 +1027,21 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
             selected={selectedIds}
             onChange={setSelectedIds}
           />
+
+          {/* Group toggle — only visible on Criativos tab */}
+          {tab === 'creatives' && (
+            <button
+              onClick={() => setGroupCreatives(g => !g)}
+              className={`ml-auto flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-colors
+                ${groupCreatives
+                  ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30'
+                  : 'bg-surface-800 text-gray-400 border-surface-700 hover:text-gray-200 hover:border-surface-600'
+                }`}
+            >
+              <Layers className="w-4 h-4" />
+              {groupCreatives ? 'Agrupado por nome' : 'Individual por conjunto'}
+            </button>
+          )}
         </div>
 
         {/* ── Error state ──────────────────────────────────────────────────── */}
@@ -1287,23 +1302,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
           }
 
           return (
-            <div className="space-y-3">
-              {/* Toolbar */}
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setGroupCreatives(g => !g)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors
-                    ${groupCreatives
-                      ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30'
-                      : 'bg-surface-800 text-gray-400 border-surface-700 hover:text-gray-200'
-                    }`}
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  {groupCreatives ? 'Agrupado por nome' : 'Individual por conjunto'}
-                </button>
-              </div>
-
-              <div className="bg-surface-800 border border-surface-700 rounded-2xl overflow-hidden">
+            <div className="bg-surface-800 border border-surface-700 rounded-2xl overflow-hidden">
                 {creativesLoading ? (
                   <div className="flex items-center justify-center py-16">
                     <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
@@ -1404,7 +1403,6 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                   </div>
                 )}
               </div>
-            </div>
           )
         })()}
 
