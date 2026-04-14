@@ -544,6 +544,65 @@ function FunnelSection({ data }: { data: AggregatedData }) {
   )
 }
 
+// ── PaceSection ───────────────────────────────────────────────────────────────
+function PaceSection({ daily, endDate }: { daily: CampaignInsight[]; endDate: string }) {
+  const todayStr = today()
+
+  if (endDate <= todayStr) return null
+
+  const datesWithData = [...new Set(daily.map(r => r.date).filter(Boolean))]
+  const diasPassados  = datesWithData.length
+  if (diasPassados < 3) return null
+
+  const end          = new Date(endDate   + 'T00:00:00')
+  const now          = new Date(todayStr  + 'T00:00:00')
+  const diasRestantes = Math.round((end.getTime() - now.getTime()) / 86400000)
+  if (diasRestantes <= 0) return null
+
+  const totalSpend     = daily.reduce((s, r) => s + r.spend,     0)
+  const totalPurchases = daily.reduce((s, r) => s + r.purchases, 0)
+  const totalLeads     = daily.reduce((s, r) => s + r.leads,     0)
+  const totalRevenue   = daily.reduce((s, r) => s + r.revenue,   0)
+
+  const avgSpend     = totalSpend     / diasPassados
+  const avgPurchases = totalPurchases / diasPassados
+  const avgLeads     = totalLeads     / diasPassados
+  const avgRevenue   = totalRevenue   / diasPassados
+
+  const projSpend     = avgSpend     * diasRestantes
+  const projPurchases = avgPurchases * diasRestantes
+  const projLeads     = avgLeads     * diasRestantes
+  const projRevenue   = avgRevenue   * diasRestantes
+
+  const items = [
+    { label: 'Investimento', proj: fmtCurrency(projSpend),              avg: `${fmtCurrency(avgSpend)}/dia`       },
+    { label: 'Compras',      proj: fmtNumber(Math.round(projPurchases)), avg: `${fmtDecimal(avgPurchases)}/dia`   },
+    { label: 'Leads',        proj: fmtNumber(Math.round(projLeads)),     avg: `${fmtDecimal(avgLeads)}/dia`       },
+    { label: 'Receita',      proj: fmtCurrency(projRevenue),             avg: `${fmtCurrency(avgRevenue)}/dia`    },
+  ]
+
+  return (
+    <div className="bg-indigo-500/[0.07] border border-indigo-500/20 rounded-2xl px-5 py-4">
+      <div className="flex items-center gap-2 mb-3.5">
+        <TrendingUp className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+        <span className="text-sm font-semibold text-indigo-300">Projeção de Ritmo</span>
+        <span className="text-xs text-gray-500">
+          — {diasRestantes} {diasRestantes === 1 ? 'dia restante' : 'dias restantes'} no período, com base em {diasPassados} dias de dados
+        </span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+        {items.map(item => (
+          <div key={item.label}>
+            <p className="text-[11px] text-gray-500 font-medium mb-0.5">{item.label}</p>
+            <p className="text-lg font-bold text-white leading-tight">{item.proj}</p>
+            <p className="text-[11px] text-gray-600 mt-0.5">{item.avg}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── TopCampaigns ──────────────────────────────────────────────────────────────
 function TopCampaigns({ rows }: { rows: CampaignInsight[] }) {
   const top = [...rows].sort((a, b) => b.spend - a.spend).slice(0, 5)
@@ -1125,6 +1184,11 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                     <Settings2 className="w-3 h-3" />
                     Segure e arraste os cards para reordenar · clique no × para remover · clique duplo no rótulo para editar
                   </p>
+                )}
+
+                {/* ── Pace projection ───────────────────────────────────── */}
+                {!loading && daily.length > 0 && (
+                  <PaceSection daily={daily} endDate={endDate} />
                 )}
 
                 {/* ── Campaigns breakdown table ─────────────────────────── */}
