@@ -20,6 +20,7 @@ import DateRangePicker  from '@/components/DateRangePicker'
 import toast from 'react-hot-toast'
 import type { CampaignInsight } from '@/services/meta/insights'
 import type { AdInsight } from '@/services/meta/creatives'
+import type { CreativeDetail } from '@/app/api/meta/creative-detail/route'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface AggregatedData {
@@ -505,151 +506,39 @@ function Th({ label, sortKey, currentKey, dir, onSort }: {
 
 // ── FunnelSection ─────────────────────────────────────────────────────────────
 function FunnelSection({ data }: { data: AggregatedData }) {
-  type FStepStatus = 'great' | 'good' | 'ok' | 'poor' | 'na'
-
-  function classify(v: number, thresholds: [number, number, number]): FStepStatus {
-    if (v <= 0) return 'na'
-    if (v >= thresholds[2]) return 'great'
-    if (v >= thresholds[1]) return 'good'
-    if (v >= thresholds[0]) return 'ok'
-    return 'poor'
-  }
-
-  const ctr         = data.impressions > 0      ? (data.clicks           / data.impressions)      * 100 : 0
-  const connectRate = data.clicks > 0           ? (data.landingPageViews / data.clicks)           * 100 : 0
-  const icRate      = data.landingPageViews > 0 ? (data.initiateCheckout / data.landingPageViews) * 100 : 0
-  const purchRate   = data.initiateCheckout > 0 ? (data.purchases        / data.initiateCheckout) * 100 : 0
-
-  // Benchmarks: Meta Ads / infoprodutos / e-comm Brasil
-  // thresholds: [ok, good, great]
-  const convSteps: Array<{
-    arrow: string; rate: number; status: FStepStatus; ref: string
-    msg: Record<FStepStatus, string>
-  }> = [
-    {
-      arrow: 'CTR',
-      rate: ctr,
-      status: classify(ctr, [0.8, 1.8, 3.5]),
-      ref: 'mercado ~1.8%',
-      msg: {
-        poor:  `CTR de ${ctr.toFixed(2)}% está abaixo do mercado (ref ≥1.8%). Os criativos não geram clique suficiente — teste novos hooks visuais, thumbnails e copy de abertura.`,
-        ok:    `CTR de ${ctr.toFixed(2)}% é razoável mas há espaço para crescer. Teste variações de criativo: ângulo de dor, prova social ou curiosidade.`,
-        good:  `CTR de ${ctr.toFixed(2)}% está acima da média. Criativos performando bem — mantenha testes para escalar os vencedores.`,
-        great: `CTR de ${ctr.toFixed(2)}% está excelente. Alta relevância do criativo para o público — ótimo sinal para escala.`,
-        na:    'Sem dados de cliques.',
-      },
-    },
-    {
-      arrow: 'Connect rate',
-      rate: connectRate,
-      status: classify(connectRate, [40, 60, 80]),
-      ref: 'mercado ~60%',
-      msg: {
-        poor:  `Apenas ${connectRate.toFixed(1)}% dos cliques chegam à LP (ref ≥60%). Provável causa: lentidão no carregamento ou redirects. Verifique PageSpeed, mobile UX e URL de destino.`,
-        ok:    `Connect rate de ${connectRate.toFixed(1)}% está abaixo do ideal. Otimize velocidade da LP e reduza o número de redirects.`,
-        good:  `Connect rate de ${connectRate.toFixed(1)}% está bom. LP carregando com fluidez.`,
-        great: `Connect rate de ${connectRate.toFixed(1)}% é excelente. Praticamente todos os cliques chegam à LP.`,
-        na:    'Sem dados de LP views.',
-      },
-    },
-    {
-      arrow: 'LP → Checkout',
-      rate: icRate,
-      status: classify(icRate, [8, 18, 35]),
-      ref: 'mercado ~18%',
-      msg: {
-        poor:  `Apenas ${icRate.toFixed(1)}% das visitas iniciam o checkout (ref ≥18%). A LP não está convencendo — revise headline, oferta principal, provas sociais e o CTA.`,
-        ok:    `${icRate.toFixed(1)}% de conversão de LP para checkout é mediano. Teste variações de headline, CTA e sequência de oferta.`,
-        good:  `LP convertendo bem (${icRate.toFixed(1)}%). Continue testando prova social e urgência para escalar.`,
-        great: `LP com conversão excelente (${icRate.toFixed(1)}%). Oferta e copy muito alinhados ao público.`,
-        na:    'Sem dados de checkout.',
-      },
-    },
-    {
-      arrow: 'Checkout → Compra',
-      rate: purchRate,
-      status: classify(purchRate, [20, 40, 65]),
-      ref: 'mercado ~40%',
-      msg: {
-        poor:  `Apenas ${purchRate.toFixed(1)}% completa a compra (ref ≥40%). Verifique: número de etapas no checkout, meios de pagamento disponíveis, selos de segurança e garantia visível.`,
-        ok:    `Checkout convertendo ${purchRate.toFixed(1)}% — mediano. Reduza fricção, adicione urgência real e destaque a garantia.`,
-        good:  `Bom aproveitamento no checkout (${purchRate.toFixed(1)}%). Processo de compra fluido.`,
-        great: `Checkout excelente (${purchRate.toFixed(1)}%). Experiência de compra muito bem otimizada.`,
-        na:    'Sem dados de compras.',
-      },
-    },
-  ]
-
-  const STATUS: Record<FStepStatus, { label: string; color: string; dot: string; bg: string; border: string }> = {
-    great: { label: 'Ótimo', color: 'text-emerald-400', dot: 'bg-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/25' },
-    good:  { label: 'Bom',   color: 'text-blue-400',    dot: 'bg-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/25'    },
-    ok:    { label: 'Ok',    color: 'text-yellow-400',  dot: 'bg-yellow-400',  bg: 'bg-yellow-500/10',  border: 'border-yellow-500/25'  },
-    poor:  { label: 'Ruim',  color: 'text-red-400',     dot: 'bg-red-400',     bg: 'bg-red-500/10',     border: 'border-red-500/25'     },
-    na:    { label: '—',     color: 'text-gray-600',    dot: 'bg-gray-600',    bg: 'bg-surface-700/50', border: 'border-surface-600'    },
-  }
-
-  const funnel = [
+  const steps = [
     { label: 'Impressões',       value: data.impressions      },
     { label: 'Cliques',          value: data.clicks           },
     { label: 'LP Views',         value: data.landingPageViews },
     { label: 'Iniciar Checkout', value: data.initiateCheckout },
     { label: 'Compras',          value: data.purchases        },
   ]
-
-  const PRIORITY: FStepStatus[] = ['poor', 'ok', 'good', 'great', 'na']
-  const insight = [...convSteps]
-    .filter(s => s.status !== 'na')
-    .sort((a, b) => PRIORITY.indexOf(a.status) - PRIORITY.indexOf(b.status))[0] ?? null
-
   return (
     <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5">
-      <h3 className="text-sm font-semibold text-gray-300 mb-3">Funil de Conversão</h3>
-
-      {/* Steps interleaved with conversion rates */}
-      <div className="mb-4">
-        {funnel.map((step, i) => (
-          <div key={step.label}>
-            <div className="flex items-center justify-between py-2 border-b border-surface-700/30 last:border-0">
-              <span className="text-xs text-gray-400">{step.label}</span>
-              <span className="text-sm font-semibold text-gray-200 tabular-nums">{fmtNumber(step.value)}</span>
+      <h3 className="text-sm font-semibold text-gray-300 mb-1">Funil de Conversão</h3>
+      <div>
+        {steps.map((step, i) => {
+          const rate = i > 0 && steps[i - 1].value > 0
+            ? (step.value / steps[i - 1].value) * 100
+            : null
+          return (
+            <div key={step.label} className="flex items-center justify-between py-2.5 border-b border-surface-700/50 last:border-0">
+              <div className="flex items-center gap-2.5">
+                <span className="text-[11px] text-gray-600 w-3.5 tabular-nums">{i + 1}</span>
+                <span className="text-sm text-gray-300">{step.label}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                {rate !== null && (
+                  <span className="text-xs text-gray-600">↓ {rate.toFixed(1)}%</span>
+                )}
+                <span className="text-sm font-semibold text-gray-100 tabular-nums w-24 text-right">
+                  {fmtNumber(step.value)}
+                </span>
+              </div>
             </div>
-            {i < convSteps.length && (() => {
-              const conv = convSteps[i]
-              const cfg  = STATUS[conv.status]
-              return (
-                <div className="flex items-center justify-between py-1.5 pl-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-700 text-[11px]">↳</span>
-                    <span className="text-[11px] text-gray-500 tabular-nums font-medium">{conv.rate.toFixed(1)}%</span>
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border ${cfg.bg} ${cfg.color} ${cfg.border}`}>
-                      {cfg.label}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-gray-700">{conv.ref}</span>
-                </div>
-              )
-            })()}
-          </div>
-        ))}
+          )
+        })}
       </div>
-
-      {/* Main insight card */}
-      {insight && (() => {
-        const cfg     = STATUS[insight.status]
-        const message = insight.msg[insight.status]
-        const isWeak  = insight.status === 'poor' || insight.status === 'ok'
-        return (
-          <div className={`p-3.5 rounded-xl border ${cfg.bg} ${cfg.border}`}>
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
-              <span className={`text-[11px] font-semibold ${cfg.color}`}>
-                {isWeak ? 'Gargalo' : 'Destaque'} — {insight.arrow}
-              </span>
-            </div>
-            <p className="text-[11px] text-gray-400 leading-relaxed">{message}</p>
-          </div>
-        )
-      })()}
     </div>
   )
 }
@@ -887,6 +776,9 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
   const [creativeSortKey,  setCreativeSortKey]  = useState('spend')
   const [creativeSortDir,  setCreativeSortDir]  = useState<SortDir>('desc')
   const [groupCreatives,   setGroupCreatives]   = useState(true)
+  const [previewAd,        setPreviewAd]        = useState<AdInsight | null>(null)
+  const [previewDetail,    setPreviewDetail]    = useState<CreativeDetail | null>(null)
+  const [previewLoading,   setPreviewLoading]   = useState(false)
   const [loading,    setLoading]    = useState(false)
   const [error,      setError]      = useState<string | null>(null)
 
@@ -1019,6 +911,19 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
   useEffect(() => {
     if (tab === 'creatives') fetchCreatives()
   }, [tab, fetchCreatives])
+
+  // ── Creative preview ───────────────────────────────────────────────────────
+  const openCreativePreview = useCallback(async (ad: AdInsight) => {
+    setPreviewAd(ad)
+    setPreviewDetail(null)
+    setPreviewLoading(true)
+    try {
+      const res  = await fetch(`/api/meta/creative-detail?adId=${ad.adId}&workspaceId=${workspaceId}`)
+      const json = await res.json()
+      if (json.success) setPreviewDetail(json.data as CreativeDetail)
+    } catch { /* non-fatal */ }
+    finally { setPreviewLoading(false) }
+  }, [workspaceId])
 
   // ── Preset picker ──────────────────────────────────────────────────────────
   // ── Drag and drop ──────────────────────────────────────────────────────────
@@ -1567,19 +1472,27 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                           <tr key={i} className="hover:bg-surface-750/50 transition-colors">
                             {/* Thumbnail */}
                             <td className="px-4 py-2">
-                              {row.thumbnailUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={row.thumbnailUrl}
-                                  alt=""
-                                  className="w-12 h-12 object-cover rounded-lg bg-surface-700"
-                                  onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                                />
-                              ) : (
-                                <div className="w-12 h-12 rounded-lg bg-surface-700 flex items-center justify-center">
-                                  <ImageIcon className="w-5 h-5 text-gray-600" />
+                              <button
+                                onClick={() => openCreativePreview(row)}
+                                className="block w-12 h-12 rounded-lg overflow-hidden bg-surface-700 flex-shrink-0 ring-0 hover:ring-2 hover:ring-indigo-500/60 transition-all group relative"
+                              >
+                                {row.thumbnailUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={row.thumbnailUrl}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                    onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <ImageIcon className="w-5 h-5 text-gray-600" />
+                                  </div>
+                                )}
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <Eye className="w-4 h-4 text-white" />
                                 </div>
-                              )}
+                              </button>
                             </td>
                             {/* Name + subtitle */}
                             <td className="px-4 py-2 max-w-[240px]">
@@ -1646,6 +1559,109 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
           onAdd={addMetric}
           onClose={() => setShowAddModal(false)}
         />
+      )}
+
+      {/* ── Creative preview modal ─────────────────────────────────────────── */}
+      {previewAd && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => { setPreviewAd(null); setPreviewDetail(null) }}
+        >
+          <div
+            className="bg-surface-900 border border-surface-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-surface-700 flex-shrink-0">
+              <p className="text-sm font-semibold text-gray-200 truncate pr-4" title={previewAd.adName}>
+                {previewAd.adName}
+              </p>
+              <button
+                onClick={() => { setPreviewAd(null); setPreviewDetail(null) }}
+                className="text-gray-500 hover:text-gray-200 transition-colors flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex flex-col sm:flex-row overflow-hidden flex-1 min-h-0">
+              {/* Media */}
+              <div className="sm:w-64 flex-shrink-0 bg-black flex items-center justify-center min-h-[200px]">
+                {previewLoading ? (
+                  <Loader2 className="w-6 h-6 text-gray-500 animate-spin" />
+                ) : previewDetail?.videoUrl ? (
+                  // eslint-disable-next-line jsx-a11y/media-has-caption
+                  <video
+                    src={previewDetail.videoUrl}
+                    poster={previewDetail.thumbUrl ?? previewAd.thumbnailUrl}
+                    controls
+                    className="w-full h-full object-contain max-h-[70vh]"
+                  />
+                ) : (previewDetail?.imageUrl ?? previewDetail?.thumbUrl ?? previewAd.thumbnailUrl) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={previewDetail?.imageUrl ?? previewDetail?.thumbUrl ?? previewAd.thumbnailUrl}
+                    alt=""
+                    className="w-full h-full object-contain max-h-[70vh]"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-2 text-gray-700">
+                    <ImageIcon className="w-10 h-10" />
+                    <span className="text-xs">Sem mídia</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Text details */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                {previewLoading ? (
+                  <div className="flex items-center gap-2 text-gray-500 text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Carregando detalhes...
+                  </div>
+                ) : (
+                  <>
+                    {previewDetail?.title && (
+                      <div>
+                        <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wider mb-1">Título</p>
+                        <p className="text-sm text-gray-200 leading-relaxed">{previewDetail.title}</p>
+                      </div>
+                    )}
+                    {previewDetail?.body && (
+                      <div>
+                        <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wider mb-1">Texto do anúncio</p>
+                        <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{previewDetail.body}</p>
+                      </div>
+                    )}
+                    {!previewDetail?.title && !previewDetail?.body && !previewLoading && (
+                      <p className="text-xs text-gray-600 italic">Textos não disponíveis para este criativo.</p>
+                    )}
+                    {/* Metrics summary */}
+                    <div className="pt-2 border-t border-surface-700 grid grid-cols-2 gap-x-4 gap-y-2">
+                      <div>
+                        <p className="text-[10px] text-gray-600">Investido</p>
+                        <p className="text-sm font-semibold text-emerald-400">{fmtCurrency(previewAd.spend)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-600">ROAS</p>
+                        <p className="text-sm font-semibold text-gray-200">{fmtDecimal(previewAd.roas)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-600">Compras</p>
+                        <p className="text-sm font-semibold text-gray-200">{fmtNumber(previewAd.purchases)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-600">CTR</p>
+                        <p className="text-sm font-semibold text-gray-200">{fmtPercent(previewAd.ctr)}</p>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
