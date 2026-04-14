@@ -506,36 +506,42 @@ function Th({ label, sortKey, currentKey, dir, onSort }: {
 // ── FunnelSection ─────────────────────────────────────────────────────────────
 function FunnelSection({ data }: { data: AggregatedData }) {
   const steps = [
-    { label: 'Impressões',      value: data.impressions,      color: 'bg-indigo-500/20 text-indigo-300' },
-    { label: 'Cliques',         value: data.clicks,           color: 'bg-blue-500/20 text-blue-300' },
-    { label: 'LP Views',        value: data.landingPageViews, color: 'bg-cyan-500/20 text-cyan-300' },
-    { label: 'Initiate CK',     value: data.initiateCheckout, color: 'bg-violet-500/20 text-violet-300' },
-    { label: 'Compras',         value: data.purchases,        color: 'bg-emerald-500/20 text-emerald-300' },
+    { label: 'Impressões',       value: data.impressions,      fill: 'bg-indigo-500/25',  text: 'text-indigo-300' },
+    { label: 'Cliques',          value: data.clicks,           fill: 'bg-blue-500/25',    text: 'text-blue-300'   },
+    { label: 'LP Views',         value: data.landingPageViews, fill: 'bg-cyan-500/25',    text: 'text-cyan-300'   },
+    { label: 'Iniciar Checkout', value: data.initiateCheckout, fill: 'bg-violet-500/25',  text: 'text-violet-300' },
+    { label: 'Compras',          value: data.purchases,        fill: 'bg-emerald-500/25', text: 'text-emerald-300'},
   ]
   const max = steps[0].value || 1
   return (
-    <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5">
-      <h3 className="text-sm font-semibold text-gray-300 mb-4">Funil de Conversão</h3>
-      <div className="space-y-3">
+    <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5 flex flex-col">
+      <h3 className="text-sm font-semibold text-gray-300 mb-5">Funil de Conversão</h3>
+      <div className="flex-1 flex flex-col justify-between gap-1">
         {steps.map((step, i) => {
-          const pct = (step.value / max) * 100
+          const widthPct = Math.max((step.value / max) * 100, 5)
           const rate = i > 0 && steps[i - 1].value > 0
-            ? ((step.value / steps[i - 1].value) * 100).toFixed(1) + '%'
+            ? (step.value / steps[i - 1].value) * 100
             : null
           return (
             <div key={step.label}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-gray-400">{step.label}</span>
-                <div className="flex items-center gap-3">
-                  {rate && <span className="text-xs text-gray-500">{rate}</span>}
-                  <span className="text-xs font-medium text-gray-200">{fmtNumber(step.value)}</span>
+              {rate !== null && (
+                <div className="flex items-center gap-2 py-1">
+                  <div className="h-px flex-1 bg-surface-600/40" />
+                  <span className="text-[10px] font-medium text-gray-500 px-1.5 py-0.5 rounded bg-surface-700 border border-surface-600/60">
+                    ↓ {rate.toFixed(1)}%
+                  </span>
+                  <div className="h-px flex-1 bg-surface-600/40" />
                 </div>
-              </div>
-              <div className="h-2 bg-surface-700 rounded-full overflow-hidden">
+              )}
+              <div className="relative h-11 rounded-xl bg-surface-700/40 overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all ${step.color.split(' ')[0].replace('/20', '')}`}
-                  style={{ width: `${pct}%` }}
+                  className={`absolute inset-y-0 left-0 ${step.fill} rounded-xl transition-all duration-500`}
+                  style={{ width: `${widthPct}%` }}
                 />
+                <div className="absolute inset-0 flex items-center justify-between px-4">
+                  <span className={`text-xs font-semibold ${step.text}`}>{step.label}</span>
+                  <span className="text-sm font-bold text-gray-200">{fmtNumber(step.value)}</span>
+                </div>
               </div>
             </div>
           )
@@ -547,31 +553,50 @@ function FunnelSection({ data }: { data: AggregatedData }) {
 
 // ── TopCampaigns ──────────────────────────────────────────────────────────────
 function TopCampaigns({ rows }: { rows: CampaignInsight[] }) {
-  const top = [...rows]
-    .sort((a, b) => b.spend - a.spend)
-    .slice(0, 5)
+  const top = [...rows].sort((a, b) => b.spend - a.spend).slice(0, 5)
   if (!top.length) return null
-  const maxSpend = top[0].spend || 1
   return (
-    <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5">
-      <h3 className="text-sm font-semibold text-gray-300 mb-4">Top Campanhas por Investimento</h3>
-      <div className="space-y-3">
+    <div className="bg-surface-800 border border-surface-700 rounded-2xl overflow-hidden flex flex-col">
+      <div className="px-5 py-3.5 border-b border-surface-700">
+        <h3 className="text-sm font-semibold text-gray-300">Top Campanhas por Investimento</h3>
+      </div>
+      <div className="flex-1 divide-y divide-surface-700/50">
         {top.map((r, i) => (
-          <div key={r.campaignId}>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-gray-300 truncate max-w-[200px]" title={r.campaignName}>
-                {i + 1}. {r.campaignName}
+          <div key={r.campaignId} className="px-5 py-3.5">
+            {/* Name + spend */}
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[11px] font-bold text-gray-600 w-4 flex-shrink-0">{i + 1}</span>
+              <span className="text-xs font-semibold text-gray-200 truncate flex-1 leading-snug" title={r.campaignName}>
+                {r.campaignName}
               </span>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <span className="text-xs text-gray-500">{r.purchases} compras</span>
-                <span className="text-xs font-medium text-emerald-400">{fmtCurrency(r.spend)}</span>
-              </div>
+              <span className="text-sm font-bold text-emerald-400 flex-shrink-0">{fmtCurrency(r.spend)}</span>
             </div>
-            <div className="h-1.5 bg-surface-700 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-indigo-500 rounded-full transition-all"
-                style={{ width: `${(r.spend / maxSpend) * 100}%` }}
-              />
+            {/* Metrics grid */}
+            <div className="grid grid-cols-3 gap-x-3 gap-y-2 ml-6">
+              <div>
+                <p className="text-[10px] text-gray-600 mb-0.5">Compras</p>
+                <p className="text-xs font-semibold text-gray-300">{fmtNumber(r.purchases)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-600 mb-0.5">Custo/Compra</p>
+                <p className="text-xs font-semibold text-gray-300">{r.costPerPurchase > 0 ? fmtCurrency(r.costPerPurchase) : '—'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-600 mb-0.5">Tx Conv.</p>
+                <p className="text-xs font-semibold text-gray-300">{fmtPercent(r.purchaseRate)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-600 mb-0.5">Leads</p>
+                <p className="text-xs font-semibold text-gray-300">{fmtNumber(r.leads)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-600 mb-0.5">Custo/Lead</p>
+                <p className="text-xs font-semibold text-gray-300">{r.costPerLead > 0 ? fmtCurrency(r.costPerLead) : '—'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-600 mb-0.5">Tx Conv. Lead</p>
+                <p className="text-xs font-semibold text-gray-300">{fmtPercent(r.leadRate)}</p>
+              </div>
             </div>
           </div>
         ))}
