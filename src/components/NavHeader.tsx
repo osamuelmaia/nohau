@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Zap, Youtube, Megaphone, ChartNoAxesCombined, Scissors, PenLine, LayoutDashboard, LogOut, Settings } from 'lucide-react'
+import { Zap, Youtube, Megaphone, ChartNoAxesCombined, PenLine, LayoutDashboard, LogOut, Settings } from 'lucide-react'
 import WorkspaceSwitcher from '@/components/WorkspaceSwitcher'
 import { useSettingsDrawer } from '@/stores/settings-drawer'
 import type { DrawerSection } from '@/stores/settings-drawer'
@@ -12,7 +12,6 @@ const NAV = [
   { href: '/youtube',   label: 'YouTube Ops', icon: Youtube,             match: (p: string) => p.startsWith('/youtube'),               section: 'youtube' as DrawerSection },
   { href: '/campaigns', label: 'Campanhas',   icon: Megaphone,           match: (p: string) => p.startsWith('/campaigns'),             section: 'meta' as DrawerSection },
   { href: '/audit',     label: 'Webanalisis', icon: ChartNoAxesCombined, match: (p: string) => p.startsWith('/audit'),                 section: 'meta' as DrawerSection },
-  { href: '/cliper',    label: 'Cliper',       icon: Scissors,            match: (p: string) => p.startsWith('/cliper'),               section: 'youtube' as DrawerSection },
   { href: '/copy',      label: 'Copy Agent',  icon: PenLine,             match: (p: string) => p.startsWith('/copy'),                  section: 'youtube' as DrawerSection },
 ]
 

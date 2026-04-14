@@ -42,15 +42,6 @@ model AuditJob {
   createdAt   DateTime @default(now())
 }
 
-model CliperJob {
-  id         String   @id
-  fileName   String
-  duration   Float
-  transcript String
-  clips      String   // JSON: ClipSuggestion[]
-  createdAt  DateTime @default(now())
-}
-
 model CopyPersona {
   id                String    @id @default(cuid())
   name              String    // label for this persona config (e.g. "João - Marketing")
