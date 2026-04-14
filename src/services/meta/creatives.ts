@@ -8,6 +8,8 @@ import { prisma } from '@/services/db/client'
 export interface AdInsight {
   adId:         string
   adName:       string
+  adSetId:      string
+  adSetName:    string
   campaignId:   string
   campaignName: string
   thumbnailUrl?: string
@@ -74,7 +76,7 @@ export async function getAdInsights(params: {
 
   // ── 1. Fetch ad-level insights ─────────────────────────────────────────────
   const fields = [
-    'ad_id', 'ad_name', 'campaign_id', 'campaign_name',
+    'ad_id', 'ad_name', 'adset_id', 'adset_name', 'campaign_id', 'campaign_name',
     'spend', 'impressions', 'reach', 'clicks',
     'ctr', 'cpm', 'frequency',
     'actions', 'action_values',
@@ -96,6 +98,8 @@ export async function getAdInsights(params: {
   type MetaAdRow = {
     ad_id:         string
     ad_name:       string
+    adset_id:      string
+    adset_name:    string
     campaign_id:   string
     campaign_name: string
     spend:         string
@@ -167,6 +171,8 @@ export async function getAdInsights(params: {
     return {
       adId:         row.ad_id,
       adName:       row.ad_name,
+      adSetId:      row.adset_id,
+      adSetName:    row.adset_name,
       campaignId:   row.campaign_id,
       campaignName: row.campaign_name,
       thumbnailUrl: thumbnailMap.get(row.ad_id),

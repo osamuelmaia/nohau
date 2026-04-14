@@ -7,7 +7,7 @@ import {
   ChevronDown, Check, Loader2, GripVertical,
   Plus, X, ArrowUpDown, ArrowUp, ArrowDown, LayoutDashboard,
   TableProperties, AlertCircle, Settings2, Search,
-  AlertTriangle, Download, TrendingDown, Minus, Clock, BarChart3, FileText, ImageIcon,
+  AlertTriangle, Download, TrendingDown, Minus, Clock, BarChart3, FileText, ImageIcon, Layers,
 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -775,6 +775,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
   const [creativesError,   setCreativesError]   = useState<string | null>(null)
   const [creativeSortKey,  setCreativeSortKey]  = useState('spend')
   const [creativeSortDir,  setCreativeSortDir]  = useState<SortDir>('desc')
+  const [groupCreatives,   setGroupCreatives]   = useState(true)
   const [loading,    setLoading]    = useState(false)
   const [error,      setError]      = useState<string | null>(null)
 
@@ -1231,109 +1232,181 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
         {/* ══════════════════════════════════════════════════════════════════ */}
         {/* TAB: CRIATIVOS                                                    */}
         {/* ══════════════════════════════════════════════════════════════════ */}
-        {tab === 'creatives' && (
-          <div className="bg-surface-800 border border-surface-700 rounded-2xl overflow-hidden">
-            {creativesLoading ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+        {tab === 'creatives' && (() => {
+          // ── Group by adName when toggle is ON ────────────────────────────
+          const displayRows = (() => {
+            if (!groupCreatives) return creatives
+            const map = new Map<string, typeof creatives>()
+            for (const row of creatives) {
+              const key = row.adName
+              if (!map.has(key)) map.set(key, [])
+              map.get(key)!.push(row)
+            }
+            return Array.from(map.values()).map(rows => {
+              const spend            = rows.reduce((s, r) => s + r.spend,            0)
+              const impressions      = rows.reduce((s, r) => s + r.impressions,      0)
+              const reach            = rows.reduce((s, r) => s + r.reach,            0)
+              const clicks           = rows.reduce((s, r) => s + r.clicks,           0)
+              const purchases        = rows.reduce((s, r) => s + r.purchases,        0)
+              const leads            = rows.reduce((s, r) => s + r.leads,            0)
+              const initiateCheckout = rows.reduce((s, r) => s + r.initiateCheckout, 0)
+              const revenue          = rows.reduce((s, r) => s + r.revenue,          0)
+              const landingPageViews = rows.reduce((s, r) => s + r.landingPageViews, 0)
+              return {
+                ...rows[0],
+                thumbnailUrl:            rows.find(r => r.thumbnailUrl)?.thumbnailUrl,
+                adSetName:               '',
+                adSetId:                 '',
+                spend, impressions, reach, clicks, purchases, leads,
+                initiateCheckout, revenue, landingPageViews,
+                roas:                    spend > 0            ? revenue / spend                    : 0,
+                ctr:                     impressions > 0      ? (clicks / impressions) * 100       : 0,
+                cpm:                     impressions > 0      ? (spend  / impressions) * 1000      : 0,
+                frequency:               reach > 0            ? impressions / reach                : 0,
+                connectRate:             clicks > 0           ? (landingPageViews / clicks) * 100  : 0,
+                purchaseRate:            landingPageViews > 0 ? (purchases / landingPageViews) * 100 : 0,
+                leadRate:                landingPageViews > 0 ? (leads     / landingPageViews) * 100 : 0,
+                cpc:                     clicks > 0           ? spend / clicks                     : 0,
+                costPerLead:             leads > 0            ? spend / leads                      : 0,
+                costPerPurchase:         purchases > 0        ? spend / purchases                  : 0,
+                costPerInitiateCheckout: initiateCheckout > 0 ? spend / initiateCheckout           : 0,
+              }
+            })
+          })()
+
+          const sortedRows = [...displayRows].sort((a, b) => {
+            const dir = creativeSortDir === 'asc' ? 1 : -1
+            const va  = (a as unknown as Record<string, unknown>)[creativeSortKey]
+            const vb  = (b as unknown as Record<string, unknown>)[creativeSortKey]
+            return (Number(va ?? 0) - Number(vb ?? 0)) * dir
+          })
+
+          const onSort = (k: string) => {
+            if (k === creativeSortKey) setCreativeSortDir(d => d === 'asc' ? 'desc' : 'asc')
+            else { setCreativeSortKey(k); setCreativeSortDir('desc') }
+          }
+
+          return (
+            <div className="space-y-3">
+              {/* Toolbar */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setGroupCreatives(g => !g)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors
+                    ${groupCreatives
+                      ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30'
+                      : 'bg-surface-800 text-gray-400 border-surface-700 hover:text-gray-200'
+                    }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  {groupCreatives ? 'Agrupado por nome' : 'Individual por conjunto'}
+                </button>
               </div>
-            ) : creativesError ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <AlertCircle className="w-8 h-8 text-red-400" />
-                <p className="text-sm text-red-400">{creativesError}</p>
-                <button onClick={fetchCreatives} className="text-xs text-indigo-400 hover:underline">Tentar novamente</button>
+
+              <div className="bg-surface-800 border border-surface-700 rounded-2xl overflow-hidden">
+                {creativesLoading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+                  </div>
+                ) : creativesError ? (
+                  <div className="flex flex-col items-center justify-center py-16 gap-3">
+                    <AlertCircle className="w-8 h-8 text-red-400" />
+                    <p className="text-sm text-red-400">{creativesError}</p>
+                    <button onClick={fetchCreatives} className="text-xs text-indigo-400 hover:underline">Tentar novamente</button>
+                  </div>
+                ) : creatives.length === 0 ? (
+                  <div className="text-center py-16 text-gray-500">
+                    <ImageIcon className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">Nenhum criativo encontrado para o período selecionado.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="border-b border-surface-700 bg-surface-750">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 w-16">Preview</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">
+                            {groupCreatives ? 'Criativo' : 'Criativo / Conjunto'}
+                          </th>
+                          {([
+                            ['spend',           'Investido'],
+                            ['roas',            'ROAS'],
+                            ['revenue',         'Receita'],
+                            ['purchases',       'Compras'],
+                            ['costPerPurchase', 'Custo/Compra'],
+                            ['purchaseRate',    'Tx Conv.'],
+                            ['leads',           'Leads'],
+                            ['costPerLead',     'Custo/Lead'],
+                            ['leadRate',        'Tx Conv. Lead'],
+                            ['cpc',             'CPC'],
+                            ['cpm',             'CPM'],
+                            ['ctr',             'CTR'],
+                            ['frequency',       'Freq.'],
+                            ['impressions',     'Impressões'],
+                            ['reach',           'Alcance'],
+                          ] as [string, string][]).map(([key, label]) => (
+                            <Th key={key} label={label} sortKey={key}
+                              currentKey={creativeSortKey} dir={creativeSortDir}
+                              onSort={onSort} />
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-surface-700/50">
+                        {sortedRows.map((row, i) => (
+                          <tr key={i} className="hover:bg-surface-750/50 transition-colors">
+                            {/* Thumbnail */}
+                            <td className="px-4 py-2">
+                              {row.thumbnailUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={row.thumbnailUrl}
+                                  alt=""
+                                  className="w-12 h-12 object-cover rounded-lg bg-surface-700"
+                                  onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                                />
+                              ) : (
+                                <div className="w-12 h-12 rounded-lg bg-surface-700 flex items-center justify-center">
+                                  <ImageIcon className="w-5 h-5 text-gray-600" />
+                                </div>
+                              )}
+                            </td>
+                            {/* Name + subtitle */}
+                            <td className="px-4 py-2 max-w-[240px]">
+                              <p className="text-gray-200 text-sm truncate font-medium" title={row.adName}>{row.adName}</p>
+                              {groupCreatives ? null : (
+                                <p className="text-gray-500 text-xs truncate mt-0.5"
+                                  title={`${row.campaignName} / ${row.adSetName}`}>
+                                  {row.campaignName}
+                                  {row.adSetName ? <span className="text-gray-600"> / {row.adSetName}</span> : null}
+                                </p>
+                              )}
+                            </td>
+                            {/* Metrics */}
+                            <td className="px-4 py-3 text-emerald-400 font-medium whitespace-nowrap">{fmtCurrency(row.spend)}</td>
+                            <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtDecimal(row.roas)}</td>
+                            <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtCurrency(row.revenue)}</td>
+                            <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtNumber(row.purchases)}</td>
+                            <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{row.costPerPurchase > 0 ? fmtCurrency(row.costPerPurchase) : '—'}</td>
+                            <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtPercent(row.purchaseRate)}</td>
+                            <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtNumber(row.leads)}</td>
+                            <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{row.costPerLead > 0 ? fmtCurrency(row.costPerLead) : '—'}</td>
+                            <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtPercent(row.leadRate)}</td>
+                            <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtCurrency(row.cpc)}</td>
+                            <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtCurrency(row.cpm)}</td>
+                            <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtPercent(row.ctr)}</td>
+                            <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtDecimal(row.frequency)}</td>
+                            <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtNumber(row.impressions)}</td>
+                            <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtNumber(row.reach)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
-            ) : creatives.length === 0 ? (
-              <div className="text-center py-16 text-gray-500">
-                <ImageIcon className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Nenhum criativo encontrado para o período selecionado.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="border-b border-surface-700 bg-surface-750">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 w-16">Preview</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Criativo</th>
-                      {([
-                        ['spend',            'Investido'],
-                        ['roas',             'ROAS'],
-                        ['revenue',          'Receita'],
-                        ['purchases',        'Compras'],
-                        ['costPerPurchase',  'Custo/Compra'],
-                        ['purchaseRate',     'Tx Conv.'],
-                        ['leads',            'Leads'],
-                        ['costPerLead',      'Custo/Lead'],
-                        ['leadRate',         'Tx Conv. Lead'],
-                        ['cpc',              'CPC'],
-                        ['cpm',              'CPM'],
-                        ['ctr',              'CTR'],
-                        ['frequency',        'Freq.'],
-                        ['impressions',      'Impressões'],
-                        ['reach',            'Alcance'],
-                      ] as [string, string][]).map(([key, label]) => (
-                        <Th key={key} label={label} sortKey={key}
-                          currentKey={creativeSortKey} dir={creativeSortDir}
-                          onSort={k => {
-                            if (k === creativeSortKey) setCreativeSortDir(d => d === 'asc' ? 'desc' : 'asc')
-                            else { setCreativeSortKey(k); setCreativeSortDir('desc') }
-                          }} />
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-surface-700/50">
-                    {[...creatives].sort((a, b) => {
-                      const dir = creativeSortDir === 'asc' ? 1 : -1
-                      const va = (a as unknown as Record<string, unknown>)[creativeSortKey]
-                      const vb = (b as unknown as Record<string, unknown>)[creativeSortKey]
-                      return (Number(va ?? 0) - Number(vb ?? 0)) * dir
-                    }).map((row, i) => (
-                      <tr key={i} className="hover:bg-surface-750/50 transition-colors">
-                        {/* Thumbnail */}
-                        <td className="px-4 py-2">
-                          {row.thumbnailUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={row.thumbnailUrl}
-                              alt=""
-                              className="w-12 h-12 object-cover rounded-lg bg-surface-700"
-                              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                            />
-                          ) : (
-                            <div className="w-12 h-12 rounded-lg bg-surface-700 flex items-center justify-center">
-                              <ImageIcon className="w-5 h-5 text-gray-600" />
-                            </div>
-                          )}
-                        </td>
-                        {/* Name + campaign */}
-                        <td className="px-4 py-2 max-w-[220px]">
-                          <p className="text-gray-200 text-sm truncate font-medium" title={row.adName}>{row.adName}</p>
-                          <p className="text-gray-500 text-xs truncate mt-0.5" title={row.campaignName}>{row.campaignName}</p>
-                        </td>
-                        {/* Metrics */}
-                        <td className="px-4 py-3 text-emerald-400 font-medium whitespace-nowrap">{fmtCurrency(row.spend)}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtDecimal(row.roas)}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtCurrency(row.revenue)}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtNumber(row.purchases)}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{row.costPerPurchase > 0 ? fmtCurrency(row.costPerPurchase) : '—'}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtPercent(row.purchaseRate)}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtNumber(row.leads)}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{row.costPerLead > 0 ? fmtCurrency(row.costPerLead) : '—'}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtPercent(row.leadRate)}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtCurrency(row.cpc)}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtCurrency(row.cpm)}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtPercent(row.ctr)}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtDecimal(row.frequency)}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtNumber(row.impressions)}</td>
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtNumber(row.reach)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+            </div>
+          )
+        })()}
 
         {/* ══════════════════════════════════════════════════════════════════ */}
         {/* TAB: HORÁRIOS & DIAS                                              */}
