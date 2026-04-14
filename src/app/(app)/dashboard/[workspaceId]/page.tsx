@@ -1593,9 +1593,11 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                 ) : previewDetail?.videoUrl ? (
                   // eslint-disable-next-line jsx-a11y/media-has-caption
                   <video
-                    src={previewDetail.videoUrl}
+                    src={`/api/meta/video-proxy?url=${encodeURIComponent(previewDetail.videoUrl)}`}
                     poster={previewDetail.thumbUrl ?? previewAd.thumbnailUrl}
                     controls
+                    preload="metadata"
+                    playsInline
                     className="w-full h-full object-contain max-h-[70vh]"
                   />
                 ) : (previewDetail?.imageUrl ?? previewDetail?.thumbUrl ?? previewAd.thumbnailUrl) ? (
