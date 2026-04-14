@@ -1587,19 +1587,33 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
             {/* Body */}
             <div className="flex flex-col sm:flex-row overflow-hidden flex-1 min-h-0">
               {/* Media */}
-              <div className="sm:w-64 flex-shrink-0 bg-black flex items-center justify-center min-h-[200px]">
+              <div className="sm:w-64 flex-shrink-0 bg-black flex items-center justify-center min-h-[200px] relative">
                 {previewLoading ? (
                   <Loader2 className="w-6 h-6 text-gray-500 animate-spin" />
                 ) : previewDetail?.videoUrl ? (
                   // eslint-disable-next-line jsx-a11y/media-has-caption
                   <video
+                    key={previewDetail.videoUrl}
                     src={`/api/meta/video-proxy?url=${encodeURIComponent(previewDetail.videoUrl)}`}
-                    poster={previewDetail.thumbUrl ?? previewAd.thumbnailUrl}
+                    poster={previewDetail.thumbUrl ?? previewAd.thumbnailUrl ?? undefined}
                     controls
                     preload="metadata"
                     playsInline
                     className="w-full h-full object-contain max-h-[70vh]"
                   />
+                ) : previewDetail?.isVideo ? (
+                  /* Video detected but source URL unavailable */
+                  <div className="flex flex-col items-center gap-3 p-4 text-center">
+                    {(previewDetail.thumbUrl ?? previewAd.thumbnailUrl) && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={previewDetail.thumbUrl ?? previewAd.thumbnailUrl}
+                        alt=""
+                        className="w-full object-contain max-h-40 opacity-60"
+                      />
+                    )}
+                    <p className="text-xs text-gray-500">Vídeo não disponível via API</p>
+                  </div>
                 ) : (previewDetail?.imageUrl ?? previewDetail?.thumbUrl ?? previewAd.thumbnailUrl) ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
