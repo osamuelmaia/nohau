@@ -597,32 +597,10 @@ const CHART_METRICS: ChartMetric[] = [
   { key: 'leads',     label: 'Leads',     color: '#f472b6', gradient: 'gradLeads',     format: 'number'   },
 ]
 
-function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string; payload: Record<string, unknown> }[]; label?: string }) {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="bg-[#13151f] border border-surface-600 rounded-2xl p-3.5 shadow-2xl shadow-black/60 min-w-[160px]">
-      <p className="text-xs font-semibold text-gray-300 mb-2.5">{label}</p>
-      {payload.map(p => (
-        <div key={p.name} className="flex items-center justify-between gap-4 mb-1.5 last:mb-0">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
-            <span className="text-xs text-gray-400">{p.name}</span>
-          </div>
-          <span className="text-xs font-semibold text-white">
-            {CHART_METRICS.find(m => m.label === p.name)?.format === 'currency'
-              ? p.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-              : Math.round(p.value).toLocaleString('pt-BR')
-            }
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 function EvolutionChart({ daily }: { daily: CampaignInsight[] }) {
-  const [active, setActive] = useState<string[]>(['spend', 'revenue'])
+  const [activeKey, setActiveKey] = useState<string>('spend')
 
+  // Aggregate by date
   const byDate = daily.reduce<Record<string, Record<string, number>>>((acc, row) => {
     const d = row.date ?? ''
     if (!d) return acc
@@ -641,60 +619,77 @@ function EvolutionChart({ daily }: { daily: CampaignInsight[] }) {
 
   if (data.length < 2) return null
 
-  const toggle = (key: string) =>
-    setActive(prev => prev.includes(key)
-      ? prev.length > 1 ? prev.filter(k => k !== key) : prev
-      : [...prev, key]
-    )
+  // Period totals per metric (for pills)
+  const totals = CHART_METRICS.reduce<Record<string, number>>((acc, m) => {
+    acc[m.key as string] = data.reduce((s, d) => s + (((d as Record<string, unknown>)[m.key as string] as number) ?? 0), 0)
+    return acc
+  }, {})
 
-  const activeMetrics = CHART_METRICS.filter(m => active.includes(m.key as string))
+  const metric = CHART_METRICS.find(m => m.key === activeKey)!
 
-  // separate currency vs number metrics for dual axis
-  const leftMetrics  = activeMetrics.filter(m => m.format === 'currency')
-  const rightMetrics = activeMetrics.filter(m => m.format === 'number')
-  const hasLeft  = leftMetrics.length > 0
-  const hasRight = rightMetrics.length > 0
+  const fmtTotal = (m: ChartMetric) => {
+    const v = totals[m.key as string]
+    if (m.format === 'currency') return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+    return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v))
+  }
+
+  const fmtTick = (v: number) => {
+    if (metric.format === 'currency') return v >= 1000 ? `R$${(v / 1000).toFixed(0)}k` : `R$${v.toFixed(0)}`
+    return v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))
+  }
+
+  const fmtVal = (v: number) => {
+    if (metric.format === 'currency') return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    return Math.round(v).toLocaleString('pt-BR')
+  }
 
   return (
     <div className="bg-surface-800 border border-surface-700 rounded-2xl p-6">
-      {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
           <h3 className="text-sm font-semibold text-white">Evolução Diária</h3>
           <p className="text-[11px] text-gray-500 mt-0.5">{data.length} dias com dados</p>
         </div>
-        {/* Metric toggles */}
-        <div className="flex items-center gap-2">
-          {CHART_METRICS.map(m => {
-            const on = active.includes(m.key as string)
-            return (
-              <button
-                key={m.key as string}
-                onClick={() => toggle(m.key as string)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all border ${
-                  on ? 'border-opacity-60' : 'border-transparent bg-surface-700/50 text-gray-500 hover:text-gray-400'
-                }`}
-                style={on ? { borderColor: m.color + '80', background: m.color + '15', color: m.color } : {}}>
-                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: on ? m.color : '#4b5563' }} />
-                {m.label}
-              </button>
-            )
-          })}
-        </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={300}>
-        <AreaChart data={data} margin={{ top: 10, right: hasRight ? 55 : 10, left: hasLeft ? 10 : 0, bottom: 0 }}>
+      {/* Metric selector pills — each shows label + period total */}
+      <div className="grid grid-cols-4 gap-2 mb-5">
+        {CHART_METRICS.map(m => {
+          const on = activeKey === (m.key as string)
+          return (
+            <button
+              key={m.key as string}
+              onClick={() => setActiveKey(m.key as string)}
+              className={`rounded-xl px-3 py-2.5 text-left transition-all border ${
+                on ? 'border-opacity-40' : 'border-surface-600 bg-surface-700/40 hover:bg-surface-700'
+              }`}
+              style={on ? { borderColor: m.color + '60', background: m.color + '12' } : {}}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: m.color }} />
+                <span className="text-[11px] font-medium" style={{ color: on ? m.color : '#9ca3af' }}>
+                  {m.label}
+                </span>
+              </div>
+              <p className="text-sm font-bold" style={{ color: on ? m.color : '#d1d5db' }}>
+                {fmtTotal(m)}
+              </p>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Chart — single metric, clean area + line */}
+      <ResponsiveContainer width="100%" height={260}>
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
-            {CHART_METRICS.map(m => (
-              <linearGradient key={m.gradient} id={m.gradient} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor={m.color} stopOpacity={0.25} />
-                <stop offset="95%" stopColor={m.color} stopOpacity={0}    />
-              </linearGradient>
-            ))}
+            <linearGradient id="activeGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor={metric.color} stopOpacity={0.2} />
+              <stop offset="95%" stopColor={metric.color} stopOpacity={0}   />
+            </linearGradient>
           </defs>
 
-          <CartesianGrid strokeDasharray="4 4" stroke="#1e2130" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" vertical={false} />
 
           <XAxis
             dataKey="label"
@@ -703,52 +698,41 @@ function EvolutionChart({ daily }: { daily: CampaignInsight[] }) {
             tickLine={false}
             dy={8}
           />
-
-          {hasLeft && (
-            <YAxis
-              yAxisId="left"
-              orientation="left"
-              tick={{ fill: '#6b7280', fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-              width={62}
-              tickFormatter={v => v >= 1000 ? `R$${(v / 1000).toFixed(0)}k` : `R$${v.toFixed(0)}`}
-            />
-          )}
-          {hasRight && (
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              tick={{ fill: '#6b7280', fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-              width={40}
-              tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))}
-            />
-          )}
-
-          <RechartsTooltip
-            content={<ChartTooltip />}
-            cursor={{ stroke: '#374151', strokeWidth: 1, strokeDasharray: '4 4' }}
+          <YAxis
+            tick={{ fill: '#6b7280', fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+            width={60}
+            tickFormatter={fmtTick}
           />
 
-          {activeMetrics.map(m => {
-            const yId = m.format === 'currency' ? (hasLeft ? 'left' : 'right') : (hasRight ? 'right' : 'left')
-            return (
-              <Area
-                key={m.key as string}
-                yAxisId={yId}
-                type="monotone"
-                dataKey={m.key as string}
-                name={m.label}
-                stroke={m.color}
-                strokeWidth={2}
-                fill={`url(#${m.gradient})`}
-                dot={false}
-                activeDot={{ r: 5, strokeWidth: 0, fill: m.color }}
-              />
-            )
-          })}
+          <RechartsTooltip
+            cursor={{ stroke: metric.color, strokeWidth: 1, strokeOpacity: 0.3 }}
+            content={({ active, payload, label }) => {
+              if (!active || !payload?.length) return null
+              const val = payload[0]?.value as number
+              return (
+                <div className="bg-[#13151f] border border-surface-600 rounded-xl px-3.5 py-2.5 shadow-xl shadow-black/50">
+                  <p className="text-[11px] text-gray-500 mb-1">{label}</p>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: metric.color }} />
+                    <span className="text-xs text-gray-400">{metric.label}</span>
+                    <span className="text-sm font-bold text-white ml-1">{fmtVal(val)}</span>
+                  </div>
+                </div>
+              )
+            }}
+          />
+
+          <Area
+            type="monotone"
+            dataKey={activeKey}
+            stroke={metric.color}
+            strokeWidth={2.5}
+            fill="url(#activeGrad)"
+            dot={false}
+            activeDot={{ r: 5, strokeWidth: 2, stroke: metric.color, fill: '#13151f' }}
+          />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -1207,6 +1191,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                               <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">Frequência</th>
                               <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">Alcance</th>
                               <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">Impressões</th>
+                              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">Connect Rate</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-surface-700/50">
@@ -1235,6 +1220,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                                 <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{fmtDecimal(row.frequency)}</td>
                                 <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{fmtNumber(row.reach)}</td>
                                 <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{fmtNumber(row.impressions)}</td>
+                                <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">{fmtPercent(row.connectRate)}</td>
                               </tr>
                             ))}
                           </tbody>
