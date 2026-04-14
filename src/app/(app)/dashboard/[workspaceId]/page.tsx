@@ -1117,14 +1117,6 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                   </p>
                 )}
 
-                {/* Funnel + Top campaigns */}
-                {aggData && (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-2">
-                    <FunnelSection data={aggData} />
-                    <TopCampaigns rows={insights} />
-                  </div>
-                )}
-
                 {/* ── Campaigns breakdown table ─────────────────────────── */}
                 {insights.length > 0 && (() => {
                   // Aggregate insights by campaignId (overview call already returns
@@ -1225,6 +1217,14 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                     </div>
                   )
                 })()}
+
+                {/* Funnel + Top campaigns */}
+                {aggData && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-2">
+                    <FunnelSection data={aggData} />
+                    <TopCampaigns rows={insights} />
+                  </div>
+                )}
               </>
             )}
           </div>
