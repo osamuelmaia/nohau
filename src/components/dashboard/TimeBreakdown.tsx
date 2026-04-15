@@ -254,7 +254,7 @@ export default function TimeBreakdown({ workspaceId, startDate, endDate, campaig
           Sem dados para o período selecionado
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Chart data={hours} metric={metric} title="Por Hora do Dia" icon={Clock} />
           <Chart data={days}  metric={metric} title="Por Dia da Semana" icon={CalendarDays} />
         </div>

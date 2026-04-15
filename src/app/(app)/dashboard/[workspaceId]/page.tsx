@@ -15,7 +15,6 @@ import {
   Tooltip as RechartsTooltip, ResponsiveContainer,
 } from 'recharts'
 import TimeBreakdown    from '@/components/dashboard/TimeBreakdown'
-import GA4Section       from '@/components/dashboard/GA4Section'
 import DateRangePicker  from '@/components/DateRangePicker'
 import toast from 'react-hot-toast'
 import type { CampaignInsight } from '@/services/meta/insights'
@@ -641,115 +640,227 @@ function TopCampaigns({ rows }: { rows: CampaignInsight[] }) {
 }
 
 // ── EvolutionChart ────────────────────────────────────────────────────────────
-type ChartMetric = {
-  key:       keyof CampaignInsight
-  label:     string
-  color:     string
-  gradient:  string
-  format:    'currency' | 'number'
+type ChartMetricDef = {
+  key:    keyof CampaignInsight
+  label:  string
+  color:  string
+  format: 'currency' | 'number' | 'percent' | 'decimal'
 }
 
-const CHART_METRICS: ChartMetric[] = [
-  { key: 'spend',     label: 'Investido', color: '#6366f1', gradient: 'gradSpend',     format: 'currency' },
-  { key: 'revenue',   label: 'Receita',   color: '#10b981', gradient: 'gradRevenue',   format: 'currency' },
-  { key: 'purchases', label: 'Compras',   color: '#3b82f6', gradient: 'gradPurchases', format: 'number'   },
-  { key: 'leads',     label: 'Leads',     color: '#f472b6', gradient: 'gradLeads',     format: 'number'   },
+const ALL_CHART_METRICS: ChartMetricDef[] = [
+  { key: 'spend',                  label: 'Investido',         color: '#6366f1', format: 'currency' },
+  { key: 'revenue',                label: 'Receita',           color: '#10b981', format: 'currency' },
+  { key: 'purchases',              label: 'Compras',           color: '#3b82f6', format: 'number'   },
+  { key: 'leads',                  label: 'Leads',             color: '#f472b6', format: 'number'   },
+  { key: 'roas',                   label: 'ROAS',              color: '#f59e0b', format: 'decimal'  },
+  { key: 'cpm',                    label: 'CPM',               color: '#8b5cf6', format: 'currency' },
+  { key: 'ctr',                    label: 'CTR',               color: '#eab308', format: 'percent'  },
+  { key: 'cpc',                    label: 'CPC',               color: '#ef4444', format: 'currency' },
+  { key: 'impressions',            label: 'Impressões',        color: '#64748b', format: 'number'   },
+  { key: 'reach',                  label: 'Alcance',           color: '#06b6d4', format: 'number'   },
+  { key: 'clicks',                 label: 'Cliques',           color: '#0ea5e9', format: 'number'   },
+  { key: 'linkClicks',             label: 'Cliques no Link',   color: '#22d3ee', format: 'number'   },
+  { key: 'frequency',              label: 'Frequência',        color: '#a78bfa', format: 'decimal'  },
+  { key: 'initiateCheckout',       label: 'Init. Checkout',    color: '#d946ef', format: 'number'   },
+  { key: 'landingPageViews',       label: 'LP Views',          color: '#2563eb', format: 'number'   },
+  { key: 'connectRate',            label: 'Connect Rate',      color: '#14b8a6', format: 'percent'  },
+  { key: 'purchaseRate',           label: 'Tx. Conv. Compra',  color: '#7c3aed', format: 'percent'  },
+  { key: 'leadRate',               label: 'Tx. Conv. Lead',    color: '#ec4899', format: 'percent'  },
+  { key: 'costPerLead',            label: 'Custo/Lead',        color: '#f97316', format: 'currency' },
+  { key: 'costPerPurchase',        label: 'Custo/Compra',      color: '#84cc16', format: 'currency' },
 ]
 
-function EvolutionChart({ daily }: { daily: CampaignInsight[] }) {
-  const [activeKey, setActiveKey] = useState<string>('spend')
+const DEFAULT_CHART_KEYS = ['spend', 'revenue', 'purchases', 'leads']
 
-  // Aggregate by date
-  const byDate = daily.reduce<Record<string, Record<string, number>>>((acc, row) => {
-    const d = row.date ?? ''
-    if (!d) return acc
-    if (!acc[d]) acc[d] = {}
-    for (const m of CHART_METRICS)
-      acc[d][m.key as string] = (acc[d][m.key as string] ?? 0) + (row[m.key] as number)
-    return acc
-  }, {})
+function EvolutionChart({ daily, workspaceId }: { daily: CampaignInsight[]; workspaceId: string }) {
+  const storageKey = `dash-chart-metrics-${workspaceId}`
 
-  const data = Object.entries(byDate)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, vals]) => ({
-      label: new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-      ...vals,
+  const [selectedKeys, setSelectedKeys] = useState<string[]>(DEFAULT_CHART_KEYS)
+  const [activeKey,    setActiveKey]    = useState<string>(DEFAULT_CHART_KEYS[0])
+  const [showPicker,   setShowPicker]   = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
+
+  // Load from localStorage after mount
+  useEffect(() => {
+    const saved = localStorage.getItem(storageKey)
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as string[]
+        if (parsed.length >= 1 && parsed.length <= 4) {
+          setSelectedKeys(parsed)
+          setActiveKey(parsed[0])
+        }
+      } catch { /* ignore */ }
+    }
+  }, [storageKey])
+
+  // Close picker on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setShowPicker(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // Clicking a non-selected metric replaces the currently active slot.
+  // Clicking an already-selected (but not active) metric makes it active.
+  const handlePickerClick = (key: string) => {
+    if (selectedKeys.includes(key)) {
+      setActiveKey(key)
+    } else {
+      const next = selectedKeys.map(k => k === activeKey ? key : k)
+      setSelectedKeys(next)
+      setActiveKey(key)
+      localStorage.setItem(storageKey, JSON.stringify(next))
+    }
+  }
+
+  const selectedDefs = selectedKeys
+    .map(k => ALL_CHART_METRICS.find(m => (m.key as string) === k))
+    .filter((m): m is ChartMetricDef => !!m)
+
+  // Build chart data — daily is already one row per date (aggregated server-side)
+  const data = [...daily]
+    .filter(r => r.date)
+    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
+    .map(row => ({
+      label: new Date(row.date! + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      ...(Object.fromEntries(
+        selectedDefs.map(m => [m.key as string, row[m.key] as number ?? 0])
+      )),
     }))
 
   if (data.length < 2) return null
 
-  // Period totals per metric (for pills)
-  const totals = CHART_METRICS.reduce<Record<string, number>>((acc, m) => {
-    acc[m.key as string] = data.reduce((s, d) => s + (((d as Record<string, unknown>)[m.key as string] as number) ?? 0), 0)
-    return acc
-  }, {})
+  // Correct period totals: aggregate raw values, then recompute derived metrics
+  const periodAgg = aggregate(daily)
 
-  const metric = CHART_METRICS.find(m => m.key === activeKey)!
+  const activeDef = selectedDefs.find(m => (m.key as string) === activeKey) ?? selectedDefs[0]
 
-  const fmtTotal = (m: ChartMetric) => {
-    const v = totals[m.key as string]
+  const fmtPill = (m: ChartMetricDef) => {
+    const v = periodAgg ? (periodAgg as unknown as Record<string, number>)[m.key as string] ?? 0 : 0
     if (m.format === 'currency') return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+    if (m.format === 'percent')  return `${v.toFixed(2)}%`
+    if (m.format === 'decimal')  return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v))
   }
 
   const fmtTick = (v: number) => {
-    if (metric.format === 'currency') return v >= 1000 ? `R$${(v / 1000).toFixed(0)}k` : `R$${v.toFixed(0)}`
+    if (!activeDef) return String(v)
+    if (activeDef.format === 'currency') return v >= 1000 ? `R$${(v / 1000).toFixed(0)}k` : `R$${v.toFixed(0)}`
+    if (activeDef.format === 'percent')  return `${v.toFixed(1)}%`
+    if (activeDef.format === 'decimal')  return v.toFixed(2)
     return v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))
   }
 
   const fmtVal = (v: number) => {
-    if (metric.format === 'currency') return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    if (!activeDef) return String(v)
+    if (activeDef.format === 'currency') return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    if (activeDef.format === 'percent')  return `${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`
+    if (activeDef.format === 'decimal')  return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     return Math.round(v).toLocaleString('pt-BR')
   }
 
   return (
     <div className="bg-surface-800 border border-surface-700 rounded-2xl p-6">
+      {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
           <h3 className="text-sm font-semibold text-white">Evolução Diária</h3>
           <p className="text-[11px] text-gray-500 mt-0.5">{data.length} dias com dados</p>
         </div>
+
+        {/* Metric picker button */}
+        <div className="relative" ref={pickerRef}>
+          <button
+            onClick={() => setShowPicker(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-colors ${
+              showPicker
+                ? 'bg-surface-600 border-surface-500 text-gray-200'
+                : 'bg-surface-700 border-surface-600 text-gray-400 hover:text-gray-200 hover:border-surface-500'
+            }`}>
+            <Settings2 className="w-3.5 h-3.5" />
+            Métricas
+          </button>
+
+          {showPicker && (
+            <div className="absolute right-0 top-full mt-2 z-50 w-72 bg-surface-800 border border-surface-700
+              rounded-2xl shadow-2xl shadow-black/60 overflow-hidden">
+              <div className="px-4 py-3 border-b border-surface-700">
+                <p className="text-xs font-semibold text-gray-200">Escolha as 4 métricas do gráfico</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  Clique em uma não selecionada para substituir <span style={{ color: activeDef?.color }}>
+                    {activeDef?.label}
+                  </span>
+                </p>
+              </div>
+              <div className="p-2 grid grid-cols-2 gap-1 max-h-72 overflow-y-auto">
+                {ALL_CHART_METRICS.map(m => {
+                  const sel    = selectedKeys.includes(m.key as string)
+                  const active = (m.key as string) === activeKey
+                  return (
+                    <button
+                      key={m.key as string}
+                      onClick={() => handlePickerClick(m.key as string)}
+                      className={`flex items-center gap-2 px-2.5 py-2 rounded-xl text-left text-xs transition-colors ${
+                        sel
+                          ? active
+                            ? 'bg-surface-600 text-gray-100'
+                            : 'bg-surface-700/60 text-gray-300 hover:bg-surface-600'
+                          : 'text-gray-500 hover:bg-surface-700 hover:text-gray-300'
+                      }`}>
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full flex-shrink-0 transition-opacity ${sel ? '' : 'opacity-30'}`}
+                        style={{ background: m.color }}
+                      />
+                      <span className="truncate flex-1">{m.label}</span>
+                      {sel && <Check className="w-3 h-3 flex-shrink-0" style={{ color: m.color }} />}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Metric selector pills — each shows label + period total */}
+      {/* Metric pills */}
       <div className="grid grid-cols-4 gap-2 mb-5">
-        {CHART_METRICS.map(m => {
-          const on = activeKey === (m.key as string)
+        {selectedDefs.map(m => {
+          const on = (m.key as string) === activeKey
           return (
             <button
               key={m.key as string}
               onClick={() => setActiveKey(m.key as string)}
               className={`rounded-xl px-3 py-2.5 text-left transition-all border ${
-                on ? 'border-opacity-40' : 'border-surface-600 bg-surface-700/40 hover:bg-surface-700'
+                on ? '' : 'border-surface-600 bg-surface-700/40 hover:bg-surface-700'
               }`}
-              style={on ? { borderColor: m.color + '60', background: m.color + '12' } : {}}
-            >
+              style={on ? { borderColor: m.color + '60', background: m.color + '12' } : {}}>
               <div className="flex items-center gap-1.5 mb-1">
                 <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: m.color }} />
-                <span className="text-[11px] font-medium" style={{ color: on ? m.color : '#9ca3af' }}>
+                <span className="text-[11px] font-medium truncate" style={{ color: on ? m.color : '#9ca3af' }}>
                   {m.label}
                 </span>
               </div>
-              <p className="text-sm font-bold" style={{ color: on ? m.color : '#d1d5db' }}>
-                {fmtTotal(m)}
+              <p className="text-sm font-bold truncate" style={{ color: on ? m.color : '#d1d5db' }}>
+                {fmtPill(m)}
               </p>
             </button>
           )
         })}
       </div>
 
-      {/* Chart — single metric, clean area + line */}
+      {/* Chart */}
       <ResponsiveContainer width="100%" height={260}>
         <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="activeGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor={metric.color} stopOpacity={0.2} />
-              <stop offset="95%" stopColor={metric.color} stopOpacity={0}   />
+              <stop offset="5%"  stopColor={activeDef?.color} stopOpacity={0.2} />
+              <stop offset="95%" stopColor={activeDef?.color} stopOpacity={0}   />
             </linearGradient>
           </defs>
-
           <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" vertical={false} />
-
           <XAxis
             dataKey="label"
             tick={{ fill: '#6b7280', fontSize: 11 }}
@@ -761,12 +872,11 @@ function EvolutionChart({ daily }: { daily: CampaignInsight[] }) {
             tick={{ fill: '#6b7280', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
-            width={60}
+            width={62}
             tickFormatter={fmtTick}
           />
-
           <RechartsTooltip
-            cursor={{ stroke: metric.color, strokeWidth: 1, strokeOpacity: 0.3 }}
+            cursor={{ stroke: activeDef?.color, strokeWidth: 1, strokeOpacity: 0.3 }}
             content={({ active, payload, label }) => {
               if (!active || !payload?.length) return null
               const val = payload[0]?.value as number
@@ -774,23 +884,22 @@ function EvolutionChart({ daily }: { daily: CampaignInsight[] }) {
                 <div className="bg-[#13151f] border border-surface-600 rounded-xl px-3.5 py-2.5 shadow-xl shadow-black/50">
                   <p className="text-[11px] text-gray-500 mb-1">{label}</p>
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: metric.color }} />
-                    <span className="text-xs text-gray-400">{metric.label}</span>
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: activeDef?.color }} />
+                    <span className="text-xs text-gray-400">{activeDef?.label}</span>
                     <span className="text-sm font-bold text-white ml-1">{fmtVal(val)}</span>
                   </div>
                 </div>
               )
             }}
           />
-
           <Area
             type="monotone"
             dataKey={activeKey}
-            stroke={metric.color}
+            stroke={activeDef?.color}
             strokeWidth={2.5}
             fill="url(#activeGrad)"
             dot={false}
-            activeDot={{ r: 5, strokeWidth: 2, stroke: metric.color, fill: '#13151f' }}
+            activeDot={{ r: 5, strokeWidth: 2, stroke: activeDef?.color, fill: '#13151f' }}
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -803,7 +912,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
   const workspaceId = params.workspaceId
 
   // ── Tabs & filters ─────────────────────────────────────────────────────────
-  const [tab,        setTab]        = useState<'overview' | 'daily' | 'breakdown' | 'analytics' | 'creatives'>('overview')
+  const [tab,        setTab]        = useState<'overview' | 'daily' | 'creatives'>('overview')
   const [startDate,  setStartDate]  = useState(daysAgo(29))
   const [endDate,    setEndDate]    = useState(today())
   const [activePreset, setPreset]   = useState('30 dias')
@@ -1050,8 +1159,6 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
             { id: 'overview',   label: 'Visão Geral',        icon: LayoutDashboard },
             { id: 'daily',      label: 'Desempenho Diário',  icon: TableProperties },
             { id: 'creatives',  label: 'Criativos',          icon: ImageIcon       },
-            { id: 'breakdown',  label: 'Horários & Dias',    icon: Clock           },
-            { id: 'analytics',  label: 'Google Analytics',   icon: BarChart3       },
           ].map(t => (
             <button
               key={t.id}
@@ -1301,6 +1408,16 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                     <TopCampaigns rows={insights} />
                   </div>
                 )}
+
+                {/* Horários & Dias */}
+                {!loading && (
+                  <TimeBreakdown
+                    workspaceId={workspaceId}
+                    startDate={startDate}
+                    endDate={endDate}
+                    campaignIds={selectedIds}
+                  />
+                )}
               </>
             )}
           </div>
@@ -1312,7 +1429,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
         {tab === 'daily' && (
           <div className="space-y-4">
             {/* Evolution chart */}
-            {!loading && daily.length > 0 && <EvolutionChart daily={daily} />}
+            {!loading && daily.length > 0 && <EvolutionChart daily={daily} workspaceId={workspaceId} />}
 
             {/* Export CSV button */}
             {!loading && sortedDaily.length > 0 && (
@@ -1641,25 +1758,6 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
           )
         })()}
 
-        {/* ══════════════════════════════════════════════════════════════════ */}
-        {/* TAB: HORÁRIOS & DIAS                                              */}
-        {/* ══════════════════════════════════════════════════════════════════ */}
-        {tab === 'breakdown' && (
-          <TimeBreakdown
-            workspaceId={workspaceId}
-            startDate={startDate}
-            endDate={endDate}
-            campaignIds={selectedIds}
-          />
-        )}
-
-        {tab === 'analytics' && (
-          <GA4Section
-            workspaceId={workspaceId}
-            startDate={startDate}
-            endDate={endDate}
-          />
-        )}
       </div>
 
       {/* Add metric modal */}
