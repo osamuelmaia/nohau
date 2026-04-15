@@ -106,23 +106,14 @@ function Chart({
 
   return (
     <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Icon className="w-4 h-4 text-indigo-400" />
-          <span className="text-sm font-semibold text-gray-200">{title}</span>
-        </div>
-        {topRow && metric.getValue(topRow) > 0 && (
-          <div className="text-xs text-gray-500">
-            Melhor: <span className="text-indigo-300 font-medium">{topRow.label}</span>
-            {' · '}<span className="text-gray-300">{fmt(metric.getValue(topRow), metric.format)}</span>
-          </div>
-        )}
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <Icon className="w-4 h-4 text-indigo-400" />
+        <span className="text-sm font-semibold text-gray-200">{title}</span>
       </div>
 
       {/* Bar chart */}
-      <div
-        className="flex gap-0.5 h-28 w-full"
-        style={{ gridTemplateColumns: `repeat(${data.length}, 1fr)` }}>
+      <div className="flex gap-0.5 h-28 w-full">
         {data.map((row, i) => (
           <HeatBar
             key={row.key}
@@ -134,20 +125,26 @@ function Chart({
         ))}
       </div>
 
-      {/* Top 3 badges */}
+      {/* Top 3 — labeled clearly */}
       {top3.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
-          {top3.map((r, i) => (
-            <div key={r.key} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border ${
-              i === 0
-                ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-300'
-                : 'bg-surface-700 border-surface-600 text-gray-400'
-            }`}>
-              <span className="font-semibold">{r.label}</span>
-              <span className="text-gray-500">·</span>
-              <span>{fmt(metric.getValue(r), metric.format)}</span>
-            </div>
-          ))}
+        <div>
+          <p className="text-[11px] text-gray-500 font-medium mb-2">
+            Melhores {title === 'Por Hora do Dia' ? 'horários' : 'dias'} por {metric.label.toLowerCase()}
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            {top3.map((r, i) => (
+              <div key={r.key} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border ${
+                i === 0
+                  ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-300'
+                  : 'bg-surface-700 border-surface-600 text-gray-400'
+              }`}>
+                <span className="text-gray-600 tabular-nums">{i + 1}°</span>
+                <span className="font-semibold">{r.label}</span>
+                <span className="text-gray-500">·</span>
+                <span>{fmt(metric.getValue(r), metric.format)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -244,9 +241,13 @@ export default function TimeBreakdown({ workspaceId, startDate, endDate, campaig
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-gray-400">Veja em quais horários e dias sua conta gera mais resultado.</p>
+          <h3 className="text-sm font-semibold text-gray-200">Desempenho por Horário e Dia da Semana</h3>
+          <p className="text-[11px] text-gray-500 mt-0.5">Em quais horários e dias sua conta gera mais resultado</p>
         </div>
-        <MetricPicker value={metricId} onChange={setMetricId} />
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">Métrica:</span>
+          <MetricPicker value={metricId} onChange={setMetricId} />
+        </div>
       </div>
 
       {!hasData ? (
