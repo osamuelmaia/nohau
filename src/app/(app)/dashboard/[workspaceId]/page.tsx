@@ -20,6 +20,7 @@ import toast from 'react-hot-toast'
 import type { CampaignInsight } from '@/services/meta/insights'
 import type { AdInsight } from '@/services/meta/creatives'
 import type { CreativeDetail } from '@/app/api/meta/creative-detail/route'
+import * as XLSX from 'xlsx'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface AggregatedData {
@@ -133,6 +134,100 @@ function exportCSV(rows: CampaignInsight[]) {
   a.download = `dashboard-${new Date().toISOString().split('T')[0]}.csv`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+// ── Campaigns XLSX export ─────────────────────────────────────────────────────
+type CampaignRow = {
+  campaignName: string
+  spend: number; revenue: number; roas: number
+  purchases: number; costPerPurchase: number; purchaseRate: number
+  leads: number; costPerLead: number; leadRate: number
+  impressions: number; reach: number; ctr: number; cpm: number; cpc: number
+  frequency: number; connectRate: number; initiateCheckout: number
+}
+
+function scoreCampaigns(rows: CampaignRow[]) {
+  const norm = (vals: number[]) => {
+    const min = Math.min(...vals)
+    const max = Math.max(...vals)
+    return vals.map(v => max === min ? 0.5 : (v - min) / (max - min))
+  }
+
+  const roasN     = norm(rows.map(r => r.roas))
+  const convN     = norm(rows.map(r => Math.max(r.purchaseRate, r.leadRate)))
+  const cpxVals   = rows.map(r =>
+    r.purchases > 0 ? r.costPerPurchase :
+    r.leads     > 0 ? r.costPerLead     : r.spend
+  )
+  const cpxN      = norm(cpxVals).map(v => 1 - v)   // lower cost = better
+  const volumeN   = norm(rows.map(r => r.purchases + r.leads))
+  const spendN    = norm(rows.map(r => r.spend))
+
+  return rows.map((r, i) => ({
+    ...r,
+    score: Math.round((roasN[i] * 0.25 + convN[i] * 0.25 + cpxN[i] * 0.25 + volumeN[i] * 0.15 + spendN[i] * 0.10) * 1000) / 10,
+  })).sort((a, b) => b.score - a.score)
+}
+
+function exportCampaignsXLSX(rows: CampaignRow[], startDate: string, endDate: string) {
+  const ranked = scoreCampaigns(rows)
+
+  const headers = [
+    '#', 'Campanha', 'Score (0-100)', 'ROAS',
+    'Tx Conv. Compra (%)', 'Tx Conv. Lead (%)',
+    'Custo/Compra (R$)', 'Custo/Lead (R$)',
+    'Compras', 'Leads',
+    'Investido (R$)', 'Receita (R$)',
+    'Alcance', 'Impressões',
+    'CTR (%)', 'CPM (R$)', 'CPC (R$)',
+    'Frequência', 'Connect Rate (%)', 'Init. Checkout',
+  ]
+
+  const dataRows = ranked.map((r, i) => [
+    i + 1,
+    r.campaignName,
+    r.score,
+    +r.roas.toFixed(2),
+    +r.purchaseRate.toFixed(2),
+    +r.leadRate.toFixed(2),
+    +r.costPerPurchase.toFixed(2),
+    +r.costPerLead.toFixed(2),
+    r.purchases,
+    r.leads,
+    +r.spend.toFixed(2),
+    +r.revenue.toFixed(2),
+    r.reach,
+    r.impressions,
+    +r.ctr.toFixed(2),
+    +r.cpm.toFixed(2),
+    +r.cpc.toFixed(2),
+    +r.frequency.toFixed(2),
+    +r.connectRate.toFixed(2),
+    r.initiateCheckout,
+  ])
+
+  const ws = XLSX.utils.aoa_to_sheet([
+    [`Campanhas no Período — ${startDate} a ${endDate}`],
+    [],
+    headers,
+    ...dataRows,
+  ])
+
+  // Column widths
+  ws['!cols'] = [
+    { wch: 4 }, { wch: 40 }, { wch: 13 }, { wch: 8 },
+    { wch: 18 }, { wch: 16 },
+    { wch: 16 }, { wch: 14 },
+    { wch: 9 }, { wch: 8 },
+    { wch: 14 }, { wch: 13 },
+    { wch: 11 }, { wch: 11 },
+    { wch: 8 }, { wch: 10 }, { wch: 10 },
+    { wch: 11 }, { wch: 16 }, { wch: 14 },
+  ]
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Campanhas')
+  XLSX.writeFile(wb, `campanhas_${startDate}_${endDate}.xlsx`)
 }
 
 // ── Aggregation ───────────────────────────────────────────────────────────────
@@ -1340,7 +1435,16 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                     <div className="bg-surface-800 border border-surface-700 rounded-2xl overflow-hidden mt-2">
                       <div className="px-5 py-3 border-b border-surface-700 flex items-center justify-between">
                         <h3 className="text-sm font-semibold text-gray-200">Campanhas no Período</h3>
-                        <span className="text-xs text-gray-500">{rows.length} campanha{rows.length !== 1 ? 's' : ''}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-gray-500">{rows.length} campanha{rows.length !== 1 ? 's' : ''}</span>
+                          <button
+                            onClick={() => exportCampaignsXLSX(rows, startDate, endDate)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-700 border border-surface-600
+                              text-xs text-gray-300 hover:text-gray-100 hover:border-surface-500 transition-colors">
+                            <Download className="w-3.5 h-3.5" />
+                            Exportar XLSX
+                          </button>
+                        </div>
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
