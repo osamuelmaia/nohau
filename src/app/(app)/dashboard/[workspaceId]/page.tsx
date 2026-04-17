@@ -15,6 +15,7 @@ import {
   Tooltip as RechartsTooltip, ResponsiveContainer,
 } from 'recharts'
 import TimeBreakdown    from '@/components/dashboard/TimeBreakdown'
+import GA4Section       from '@/components/dashboard/GA4Section'
 import DateRangePicker  from '@/components/DateRangePicker'
 import toast from 'react-hot-toast'
 import type { CampaignInsight } from '@/services/meta/insights'
@@ -1007,7 +1008,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
   const workspaceId = params.workspaceId
 
   // ── Tabs & filters ─────────────────────────────────────────────────────────
-  const [tab,        setTab]        = useState<'overview' | 'daily' | 'creatives'>('overview')
+  const [tab,        setTab]        = useState<'overview' | 'daily' | 'creatives' | 'analytics'>('overview')
   const [startDate,  setStartDate]  = useState(daysAgo(29))
   const [endDate,    setEndDate]    = useState(today())
   const [activePreset, setPreset]   = useState('30 dias')
@@ -1254,6 +1255,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
             { id: 'overview',   label: 'Visão Geral',        icon: LayoutDashboard },
             { id: 'daily',      label: 'Desempenho Diário',  icon: TableProperties },
             { id: 'creatives',  label: 'Criativos',          icon: ImageIcon       },
+            { id: 'analytics',  label: 'Web Analytics',      icon: BarChart3       },
           ].map(t => (
             <button
               key={t.id}
@@ -1861,6 +1863,17 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
               </div>
           )
         })()}
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* TAB: WEB ANALYTICS                                                */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {tab === 'analytics' && (
+          <GA4Section
+            workspaceId={workspaceId}
+            startDate={startDate}
+            endDate={endDate}
+          />
+        )}
 
       </div>
 
