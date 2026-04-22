@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronDown, Loader2, Clock, CalendarDays } from 'lucide-react'
+import { ChevronDown, Loader2, Clock, CalendarDays, Download } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import type { BreakdownRow } from '@/app/api/meta/breakdown/route'
 
 // ── Metric definitions (same set as dashboard) ─────────────────────────────────
@@ -188,6 +189,47 @@ function MetricPicker({ value, onChange }: { value: string; onChange: (id: strin
   )
 }
 
+// ── XLSX export ───────────────────────────────────────────────────────────────
+const EXPORT_COLS = [
+  { key: 'label',            header: 'Período'                },
+  { key: 'spend',            header: 'Investido (R$)'         },
+  { key: 'revenue',          header: 'Receita (R$)'           },
+  { key: 'roas',             header: 'ROAS'                   },
+  { key: 'purchases',        header: 'Compras'                },
+  { key: 'leads',            header: 'Leads'                  },
+  { key: 'initiateCheckout', header: 'Init. Checkout'         },
+  { key: 'impressions',      header: 'Impressões'             },
+  { key: 'reach',            header: 'Alcance'                },
+  { key: 'clicks',           header: 'Cliques'                },
+  { key: 'ctr',              header: 'CTR (%)'                },
+  { key: 'cpm',              header: 'CPM (R$)'               },
+  { key: 'cpc',              header: 'CPC (R$)'               },
+  { key: 'costPerLead',      header: 'Custo/Lead (R$)'        },
+  { key: 'costPerPurchase',  header: 'Custo/Compra (R$)'      },
+  { key: 'landingPageViews', header: 'Visualiz. Landing Page' },
+] as const
+
+function toSheetRows(rows: BreakdownRow[]) {
+  return rows.map(r =>
+    EXPORT_COLS.reduce<Record<string, string | number>>((acc, col) => {
+      acc[col.header] = r[col.key as keyof BreakdownRow] as string | number
+      return acc
+    }, {})
+  )
+}
+
+function exportBreakdownXLSX(hours: BreakdownRow[], days: BreakdownRow[], startDate: string, endDate: string) {
+  const wb = XLSX.utils.book_new()
+
+  const hoursSheet = XLSX.utils.json_to_sheet(toSheetRows(hours))
+  XLSX.utils.book_append_sheet(wb, hoursSheet, 'Por Hora do Dia')
+
+  const daysSheet = XLSX.utils.json_to_sheet(toSheetRows(days))
+  XLSX.utils.book_append_sheet(wb, daysSheet, 'Por Dia da Semana')
+
+  XLSX.writeFile(wb, `horarios_dias_${startDate}_${endDate}.xlsx`)
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function TimeBreakdown({ workspaceId, startDate, endDate, campaignIds }: Props) {
   const [metricId, setMetricId]   = useState('spend')
@@ -247,6 +289,13 @@ export default function TimeBreakdown({ workspaceId, startDate, endDate, campaig
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500">Métrica:</span>
           <MetricPicker value={metricId} onChange={setMetricId} />
+          <button
+            onClick={() => exportBreakdownXLSX(hours, days, startDate, endDate)}
+            disabled={!hours.length && !days.length}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-xs text-gray-300 hover:border-indigo-500/50 hover:text-indigo-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+            <Download className="w-3.5 h-3.5" />
+            Exportar XLSX
+          </button>
         </div>
       </div>
 
