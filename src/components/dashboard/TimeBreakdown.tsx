@@ -263,24 +263,11 @@ export default function TimeBreakdown({ workspaceId, startDate, endDate, campaig
 
   useEffect(() => { fetch_() }, [fetch_])
 
-  if (loading) return (
-    <div className="flex items-center justify-center py-20 text-gray-500 gap-3">
-      <Loader2 className="w-5 h-5 animate-spin" />
-      Carregando dados de horários...
-    </div>
-  )
-
-  if (error) return (
-    <div className="px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-400">
-      {error}
-    </div>
-  )
-
   const hasData = hours.some(r => metric.getValue(r) > 0) || days.some(r => metric.getValue(r) > 0)
 
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* Header — sempre visível */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-gray-200">Desempenho por Horário e Dia da Semana</h3>
@@ -291,7 +278,7 @@ export default function TimeBreakdown({ workspaceId, startDate, endDate, campaig
           <MetricPicker value={metricId} onChange={setMetricId} />
           <button
             onClick={() => exportBreakdownXLSX(hours, days, startDate, endDate)}
-            disabled={!hours.length && !days.length}
+            disabled={loading || (!hours.length && !days.length)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-xs text-gray-300 hover:border-indigo-500/50 hover:text-indigo-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
             <Download className="w-3.5 h-3.5" />
             Exportar XLSX
@@ -299,7 +286,17 @@ export default function TimeBreakdown({ workspaceId, startDate, endDate, campaig
         </div>
       </div>
 
-      {!hasData ? (
+      {/* Conteúdo — responde ao estado */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20 text-gray-500 gap-3">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          Carregando dados de horários...
+        </div>
+      ) : error ? (
+        <div className="px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-400">
+          {error}
+        </div>
+      ) : !hasData ? (
         <div className="text-center py-16 text-gray-600 text-sm">
           Sem dados para o período selecionado
         </div>
