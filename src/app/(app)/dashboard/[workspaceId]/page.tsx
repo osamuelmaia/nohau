@@ -1185,7 +1185,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  // ── Fetch creatives (lazy — only when tab is active) ──────────────────────
+  // ── Fetch creatives ───────────────────────────────────────────────────────
   const fetchCreatives = useCallback(async () => {
     const key    = cacheKey(workspaceId, startDate, endDate, selectedIds)
     const cached = creativesCache.get(key)
@@ -1215,6 +1215,8 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
     }
   }, [startDate, endDate, selectedIds, workspaceId])
 
+  // Preload on mount (background); re-run when filters change or user opens tab
+  useEffect(() => { fetchCreatives() }, [fetchCreatives])
   useEffect(() => {
     if (tab === 'creatives') fetchCreatives()
   }, [tab, fetchCreatives])
@@ -1506,9 +1508,9 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                           </button>
                         </div>
                       </div>
-                      <div className="overflow-x-auto">
+                      <div className="overflow-auto max-h-[520px]">
                         <table className="w-full text-sm">
-                          <thead className="border-b border-surface-700 bg-surface-750">
+                          <thead className="sticky top-0 z-10 border-b border-surface-700 bg-surface-750">
                             <tr>
                               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 min-w-[200px]">Campanha</th>
                               <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 whitespace-nowrap">Investido</th>
@@ -1619,9 +1621,9 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                 <p className="text-sm">Nenhum dado diário encontrado.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-auto max-h-[600px]">
                 <table className="w-full text-sm">
-                  <thead className="border-b border-surface-700 bg-surface-750">
+                  <thead className="sticky top-0 z-10 border-b border-surface-700 bg-surface-750">
                     <tr>
                       <Th label="Data"           sortKey="date"                    currentKey={sortKey} dir={sortDir} onSort={handleSort} />
                       <Th label="Investido"       sortKey="spend"                  currentKey={sortKey} dir={sortDir} onSort={handleSort} />
@@ -1827,9 +1829,9 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
                     <p className="text-sm">Nenhum criativo encontrado para o período selecionado.</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-auto max-h-[640px]">
                     <table className="w-full text-sm">
-                      <thead className="border-b border-surface-700 bg-surface-750">
+                      <thead className="sticky top-0 z-10 border-b border-surface-700 bg-surface-750">
                         <tr>
                           <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 w-16">Preview</th>
                           <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">

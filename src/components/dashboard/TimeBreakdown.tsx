@@ -13,21 +13,21 @@ interface MetricDef {
 }
 
 const METRICS: MetricDef[] = [
-  { id: 'spend',           label: 'Valor Investido',        format: 'currency', getValue: r => r.spend           },
   { id: 'purchases',       label: 'Compras',                format: 'number',   getValue: r => r.purchases       },
   { id: 'leads',           label: 'Leads',                  format: 'number',   getValue: r => r.leads           },
-  { id: 'revenue',         label: 'Receita',                format: 'currency', getValue: r => r.revenue         },
+  { id: 'spend',           label: 'Valor Investido',        format: 'currency', getValue: r => r.spend           },
   { id: 'roas',            label: 'ROAS',                   format: 'decimal',  getValue: r => r.roas            },
-  { id: 'impressions',     label: 'Impressões',             format: 'number',   getValue: r => r.impressions     },
-  { id: 'clicks',          label: 'Cliques',                format: 'number',   getValue: r => r.clicks          },
+  { id: 'revenue',         label: 'Receita',                format: 'currency', getValue: r => r.revenue         },
+  { id: 'costPerPurchase', label: 'Custo por Compra',       format: 'currency', getValue: r => r.costPerPurchase },
+  { id: 'costPerLead',     label: 'Custo por Lead',         format: 'currency', getValue: r => r.costPerLead     },
   { id: 'ctr',             label: 'CTR',                    format: 'percent',  getValue: r => r.ctr             },
   { id: 'cpm',             label: 'CPM',                    format: 'currency', getValue: r => r.cpm             },
   { id: 'cpc',             label: 'CPC',                    format: 'currency', getValue: r => r.cpc             },
+  { id: 'clicks',          label: 'Cliques',                format: 'number',   getValue: r => r.clicks          },
+  { id: 'impressions',     label: 'Impressões',             format: 'number',   getValue: r => r.impressions     },
   { id: 'reach',           label: 'Alcance',                format: 'number',   getValue: r => r.reach           },
-  { id: 'costPerLead',     label: 'Custo por Lead',         format: 'currency', getValue: r => r.costPerLead     },
-  { id: 'costPerPurchase', label: 'Custo por Compra',       format: 'currency', getValue: r => r.costPerPurchase },
-  { id: 'landingPageViews',label: 'Visualiz. Landing Page', format: 'number',   getValue: r => r.landingPageViews},
   { id: 'initiateCheckout',label: 'Initiate Checkout',      format: 'number',   getValue: r => r.initiateCheckout},
+  { id: 'landingPageViews',label: 'Visualiz. Landing Page', format: 'number',   getValue: r => r.landingPageViews},
 ]
 
 function fmt(v: number, format: MetricDef['format']) {
@@ -207,7 +207,7 @@ function exportBreakdownXLSX(hours: BreakdownRow[], days: BreakdownRow[], startD
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function TimeBreakdown({ workspaceId, startDate, endDate, campaignIds }: Props) {
-  const [metricId, setMetricId] = useState('spend')
+  const [metricId, setMetricId] = useState('purchases')
   const [hours,    setHours]    = useState<BreakdownRow[]>([])
   const [days,     setDays]     = useState<BreakdownRow[]>([])
   const [loading,  setLoading]  = useState(false)
