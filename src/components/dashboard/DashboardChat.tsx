@@ -28,12 +28,6 @@ const PLACEHOLDERS = [
   'Me mostre a evolução desta semana',
 ]
 
-const QUICK_STARTS = [
-  'Qual campanha está drenando budget?',
-  'Me mostre os criativos com melhor ROAS',
-  'Como está o ritmo de gastos hoje?',
-  'Qual dia da semana converte mais?',
-]
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -407,28 +401,6 @@ export default function DashboardChat({ workspaceId }: Props) {
 
               <div className="w-full">
                 <InputBox {...inputBoxProps} />
-              </div>
-
-              <div className="w-full flex flex-col gap-2">
-                {QUICK_STARTS.map(q => (
-                  <button
-                    key={q}
-                    onClick={() => sendMessage(q)}
-                    className="text-left px-3.5 py-2.5 rounded-xl text-sm transition-all"
-                    style={{ border: '1px solid var(--t-border)', color: 'var(--t-2)', background: 'transparent' }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.borderColor = 'rgba(249,115,22,0.4)'
-                      e.currentTarget.style.color       = 'var(--t-1)'
-                      e.currentTarget.style.background  = 'rgba(249,115,22,0.04)'
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.borderColor = 'var(--t-border)'
-                      e.currentTarget.style.color       = 'var(--t-2)'
-                      e.currentTarget.style.background  = 'transparent'
-                    }}>
-                    {q}
-                  </button>
-                ))}
               </div>
             </div>
 
