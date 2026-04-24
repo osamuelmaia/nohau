@@ -43,7 +43,7 @@ export default function NavHeader() {
 
   return (
     <header
-      className="sticky top-0 z-40 flex items-center justify-between px-5 h-12 border-b"
+      className="relative sticky top-0 z-40 flex items-center px-5 h-12 border-b"
       style={{ backgroundColor: 'var(--s-900)', borderColor: 'var(--t-border)' }}>
 
       {/* Left — logo + workspace */}
@@ -63,8 +63,8 @@ export default function NavHeader() {
         )}
       </div>
 
-      {/* Center — nav */}
-      <nav className="flex items-center gap-0.5">
+      {/* Center — nav (absolutely centered so left/right width changes don't shift it) */}
+      <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5">
         {NAV.map(({ href, label, icon: Icon, match }) => {
           const isActive = match(path)
           return (
@@ -84,7 +84,7 @@ export default function NavHeader() {
       </nav>
 
       {/* Right — actions */}
-      <div className="flex items-center gap-0.5 flex-shrink-0">
+      <div className="flex items-center gap-0.5 flex-shrink-0 ml-auto">
         {/* Theme toggle */}
         <button
           onClick={toggleTheme}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, KeyboardEvent } from 'react'
-import { X, Send, Trash2, Loader2, Sparkles, ChevronDown } from 'lucide-react'
+import { Send, Trash2, Loader2, Sparkles, ChevronDown } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ChatMessage {
@@ -218,9 +218,8 @@ export default function DashboardChat({ workspaceId }: Props) {
   const inputRef   = useRef<HTMLTextAreaElement>(null)
   const storageKey = `nohau_chat_${workspaceId}`
 
-  // Rotate placeholder
+  // Rotate placeholder (always rotates)
   useEffect(() => {
-    if (open) return // stop rotating when chat is open (user is focused)
     const timer = setInterval(() => {
       setPlaceholderFade(false)
       setTimeout(() => {
@@ -229,7 +228,7 @@ export default function DashboardChat({ workspaceId }: Props) {
       }, 300)
     }, 3500)
     return () => clearInterval(timer)
-  }, [open])
+  }, [])
 
   // Load history
   useEffect(() => {
@@ -361,29 +360,18 @@ export default function DashboardChat({ workspaceId }: Props) {
             boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px var(--t-border)',
           }}>
 
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3.5 flex-shrink-0"
-            style={{ borderBottom: '1px solid var(--t-border)' }}>
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-orange-500 flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-3.5 h-3.5 text-white keep-white" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold leading-none" style={{ color: 'var(--t-1)' }}>Nohau AI</p>
-                <p className="text-[10px] mt-0.5" style={{ color: 'var(--t-3)' }}>Analista de tráfego pago</p>
-              </div>
-            </div>
-            <button onClick={clearHistory} title="Nova conversa"
-              className="p-1.5 rounded-lg transition-colors"
-              style={{ color: 'var(--t-3)' }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--t-1)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'var(--t-3)')}>
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
           {/* Messages */}
           <div className="flex-1 overflow-y-auto py-4 space-y-4">
+            {/* Clear button floating top-right */}
+            <div className="flex justify-end px-4 -mt-1 mb-0">
+              <button onClick={clearHistory} title="Nova conversa"
+                className="p-1.5 rounded-lg transition-colors"
+                style={{ color: 'var(--t-3)' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--t-1)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--t-3)')}>
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
             {messages.map((m, i) => <Message key={i} message={m} />)}
             <div ref={bottomRef} />
           </div>
@@ -393,26 +381,37 @@ export default function DashboardChat({ workspaceId }: Props) {
             <div
               className="rounded-xl overflow-hidden"
               style={{ background: 'var(--s-800)', border: '1px solid var(--t-border)' }}>
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={onKeyDown}
-                disabled={loading}
-                placeholder={PLACEHOLDERS[placeholderIdx]}
-                rows={1}
-                className="w-full px-4 pt-3 pb-2 text-sm resize-none focus:outline-none transition-opacity disabled:opacity-50 bg-transparent"
-                style={{
-                  color:       'var(--t-1)',
-                  maxHeight:   '120px',
-                  overflowY:   'auto',
-                  opacity:     placeholderFade ? 1 : 0,
-                  transition:  'opacity 0.25s ease',
-                  fieldSizing: 'content',
-                } as React.CSSProperties}
-              />
-              <div className="flex items-center justify-between px-3 pb-2.5">
-                <p className="text-[10px]" style={{ color: 'var(--t-3)' }}>Enter envia · Shift+Enter nova linha</p>
+              <div className="relative">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={onKeyDown}
+                  disabled={loading}
+                  placeholder=""
+                  rows={1}
+                  className="w-full px-4 pt-3 pb-2 text-sm resize-none focus:outline-none disabled:opacity-50 bg-transparent"
+                  style={{
+                    color:       'var(--t-1)',
+                    maxHeight:   '120px',
+                    overflowY:   'auto',
+                    fieldSizing: 'content',
+                  } as React.CSSProperties}
+                />
+                {/* Animated placeholder overlay */}
+                {!input && (
+                  <span
+                    className="absolute top-3 left-4 text-sm pointer-events-none select-none"
+                    style={{
+                      color:      'var(--t-3)',
+                      opacity:    placeholderFade ? 1 : 0,
+                      transition: 'opacity 0.25s ease',
+                    }}>
+                    {PLACEHOLDERS[placeholderIdx]}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center justify-end px-3 pb-2.5">
                 <button
                   onClick={sendMessage}
                   disabled={!input.trim() || loading}
