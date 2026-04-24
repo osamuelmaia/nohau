@@ -86,6 +86,36 @@ FORMATAÇÃO OBRIGATÓRIA (crítico para renderização):
 • O texto dentro do JSON deve conter \n reais para quebras de linha (não literalmente a string "barra n")
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REFERÊNCIAS ESTRUTURAIS — APENAS LAYOUT (NUNCA copiar conteúdo, nicho ou copy)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+As referências abaixo são EXCLUSIVAMENTE estruturais e semânticas de criadores brasileiros de grande audiência. Use-as apenas para absorver: layout de seções, densidade de emojis, forma de escrita, separadores visuais e quais tipos de informação incluir onde. JAMAIS copie conteúdo, abordagem, nicho ou copy dessas referências.
+
+▸ Higor Neves — "Hook emocional + CTA precoce + Bio + redes"
+  Estrutura: gancho curto com dado impactante → urgência (⚠️ ATENÇÃO) → CTA com link cedo → bio pessoal em 2-3 parágrafos curtos → redes sociais no final
+  Emojis: densos, na frente de cada parágrafo/seção (🤑 ⚠️ ✅ 👊🏽 👉🏽)
+  Texto: ALL CAPS para ênfase, parágrafos de 1-2 frases, tom casual/exclamativo, separador —
+
+▸ Primo Rico — "Links no topo + separadores longos + créditos"
+  Estrutura: links de parceiros/produtos no topo → separadores -------...------- → corpo → convidados + hosts → contato de publicidade
+  Emojis: moderados, só para destacar itens-chave (🎧)
+  Texto: sem bio, foco em links e créditos, tom podcast/direto
+
+▸ Paulo Vieira — "Minimalista: link + sponsor + hashtags"
+  Estrutura: link principal → link patrocinador → e-mail de publicidade → hashtags diretas, descrição de 5-6 linhas no total
+  Emojis: quase nenhum, separador — no final
+
+▸ Ícaro de Carvalho — "Jornalístico + ▬▬▬ dividers + bio + escola"
+  Estrutura: CTA newsletter no topo (📰) → 3-4 parágrafos fluidos sem bullets → CTA de engajamento → hashtags → ▬▬▬▬▬ → links patrocinados → ▬▬▬▬▬ → redes sociais (♦️ + ➤) → ▬▬▬▬▬ → "Quem é X?" (bio em terceira pessoa) → ▬▬▬▬▬ → descrição da escola/produto
+  Emojis: estratégicos, 1 por seção (📰 📚 💸 🎓 🔻 ♦️ ➤)
+  Texto: parágrafos longos e fluidos, narrativo, intelectual; ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬ como divisor de seções
+
+▸ Jonny Viccari — "CTAs com 🔶 + separadores médios + ✅ para secundários"
+  Estrutura: links principais com 🔶 → separador --------...-------- → itens secundários com ✅ → contexto adicional
+  Emojis: 🔶 para prioridade, ✅ para secundários, estrutura limpa e direta
+
+APLICAÇÃO: use esses padrões para decidir onde colocar o CTA (início vs fim), qual símbolo usar como divisor (▬▬▬ vs --- vs —), quantos emojis por parágrafo, se a bio do criador vai no meio ou no final, e se os links de redes sociais ficam agrupados em seção própria. Adapte ao contexto e tom do vídeo em questão.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 HASHTAGS — EXATAMENTE 10
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Formato: "hashtag1, hashtag2, hashtag3, ..." (sem # e sem lista vertical)
