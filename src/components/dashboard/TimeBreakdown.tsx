@@ -5,7 +5,6 @@ import { ChevronDown, Loader2, Clock, CalendarDays, Download } from 'lucide-reac
 import * as XLSX from 'xlsx'
 import type { BreakdownRow } from '@/app/api/meta/breakdown/route'
 
-// ── Metric definitions (same set as dashboard) ─────────────────────────────────
 interface MetricDef {
   id:       string
   label:    string
@@ -14,24 +13,23 @@ interface MetricDef {
 }
 
 const METRICS: MetricDef[] = [
-  { id: 'spend',           label: 'Valor Investido',            format: 'currency', getValue: r => r.spend           },
-  { id: 'purchases',       label: 'Compras',                    format: 'number',   getValue: r => r.purchases       },
-  { id: 'leads',           label: 'Leads',                      format: 'number',   getValue: r => r.leads           },
-  { id: 'revenue',         label: 'Receita',                    format: 'currency', getValue: r => r.revenue         },
-  { id: 'roas',            label: 'ROAS',                       format: 'decimal',  getValue: r => r.roas            },
-  { id: 'impressions',     label: 'Impressões',                 format: 'number',   getValue: r => r.impressions     },
-  { id: 'clicks',          label: 'Cliques',                    format: 'number',   getValue: r => r.clicks          },
-  { id: 'ctr',             label: 'CTR',                        format: 'percent',  getValue: r => r.ctr             },
-  { id: 'cpm',             label: 'CPM',                        format: 'currency', getValue: r => r.cpm             },
-  { id: 'cpc',             label: 'CPC',                        format: 'currency', getValue: r => r.cpc             },
-  { id: 'reach',           label: 'Alcance',                    format: 'number',   getValue: r => r.reach           },
-  { id: 'costPerLead',     label: 'Custo por Lead',             format: 'currency', getValue: r => r.costPerLead     },
-  { id: 'costPerPurchase', label: 'Custo por Compra',           format: 'currency', getValue: r => r.costPerPurchase },
-  { id: 'landingPageViews',label: 'Visualiz. Landing Page',     format: 'number',   getValue: r => r.landingPageViews},
-  { id: 'initiateCheckout',label: 'Initiate Checkout',          format: 'number',   getValue: r => r.initiateCheckout},
+  { id: 'spend',           label: 'Valor Investido',        format: 'currency', getValue: r => r.spend           },
+  { id: 'purchases',       label: 'Compras',                format: 'number',   getValue: r => r.purchases       },
+  { id: 'leads',           label: 'Leads',                  format: 'number',   getValue: r => r.leads           },
+  { id: 'revenue',         label: 'Receita',                format: 'currency', getValue: r => r.revenue         },
+  { id: 'roas',            label: 'ROAS',                   format: 'decimal',  getValue: r => r.roas            },
+  { id: 'impressions',     label: 'Impressões',             format: 'number',   getValue: r => r.impressions     },
+  { id: 'clicks',          label: 'Cliques',                format: 'number',   getValue: r => r.clicks          },
+  { id: 'ctr',             label: 'CTR',                    format: 'percent',  getValue: r => r.ctr             },
+  { id: 'cpm',             label: 'CPM',                    format: 'currency', getValue: r => r.cpm             },
+  { id: 'cpc',             label: 'CPC',                    format: 'currency', getValue: r => r.cpc             },
+  { id: 'reach',           label: 'Alcance',                format: 'number',   getValue: r => r.reach           },
+  { id: 'costPerLead',     label: 'Custo por Lead',         format: 'currency', getValue: r => r.costPerLead     },
+  { id: 'costPerPurchase', label: 'Custo por Compra',       format: 'currency', getValue: r => r.costPerPurchase },
+  { id: 'landingPageViews',label: 'Visualiz. Landing Page', format: 'number',   getValue: r => r.landingPageViews},
+  { id: 'initiateCheckout',label: 'Initiate Checkout',      format: 'number',   getValue: r => r.initiateCheckout},
 ]
 
-// ── Formatters ────────────────────────────────────────────────────────────────
 function fmt(v: number, format: MetricDef['format']) {
   if (format === 'currency') return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   if (format === 'percent')  return `${v.toFixed(2)}%`
@@ -39,7 +37,6 @@ function fmt(v: number, format: MetricDef['format']) {
   return Math.round(v).toLocaleString('pt-BR')
 }
 
-// ── Props ─────────────────────────────────────────────────────────────────────
 interface Props {
   workspaceId: string
   startDate:   string
@@ -48,13 +45,11 @@ interface Props {
 }
 
 // ── Heatmap bar ───────────────────────────────────────────────────────────────
-function HeatBar({
-  row, metric, max, isLast,
-}: { row: BreakdownRow; metric: MetricDef; max: number; isLast?: boolean }) {
+function HeatBar({ row, metric, max, isLast }: { row: BreakdownRow; metric: MetricDef; max: number; isLast?: boolean }) {
   const [hover, setHover] = useState(false)
-  const value    = metric.getValue(row)
-  const pct      = max > 0 ? value / max : 0
-  const opacity  = pct < 0.05 && value > 0 ? 0.15 : pct
+  const value   = metric.getValue(row)
+  const pct     = max > 0 ? value / max : 0
+  const opacity = pct < 0.05 && value > 0 ? 0.15 : pct
 
   return (
     <div
@@ -62,86 +57,70 @@ function HeatBar({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}>
 
-      {/* Tooltip */}
       {hover && (
-        <div className={`absolute bottom-full mb-2 z-10 whitespace-nowrap px-2.5 py-1.5 bg-surface-700 border border-surface-600 rounded-lg text-xs shadow-xl ${isLast ? 'right-0' : 'left-1/2 -translate-x-1/2'}`}>
-          <p className="text-gray-400 font-medium">{row.label}</p>
-          <p className="text-white font-semibold">{fmt(value, metric.format)}</p>
+        <div
+          className={`absolute bottom-full mb-2 z-10 whitespace-nowrap px-2.5 py-1.5 rounded-lg text-xs shadow-xl ${isLast ? 'right-0' : 'left-1/2 -translate-x-1/2'}`}
+          style={{ background: 'var(--s-800)', border: '1px solid var(--t-border)' }}>
+          <p className="font-medium" style={{ color: 'var(--t-2)' }}>{row.label}</p>
+          <p className="font-semibold" style={{ color: 'var(--t-1)' }}>{fmt(value, metric.format)}</p>
         </div>
       )}
 
-      {/* Bar */}
       <div className="w-full flex-1 flex items-end">
         <div
           className="w-full rounded-t-sm transition-all duration-200"
           style={{
             height:          `${Math.max(opacity * 100, value > 0 ? 4 : 0)}%`,
-            backgroundColor: `rgba(99, 102, 241, ${Math.max(opacity, value > 0 ? 0.12 : 0)})`,
-            border:          hover ? '1px solid rgba(99,102,241,0.6)' : '1px solid transparent',
+            backgroundColor: `rgba(249, 115, 22, ${Math.max(opacity, value > 0 ? 0.12 : 0)})`,
+            border:          hover ? '1px solid rgba(249,115,22,0.6)' : '1px solid transparent',
           }}
         />
       </div>
 
-      {/* Label */}
-      <span className="text-[9px] text-gray-600 font-medium">{row.label}</span>
+      <span className="text-[9px] font-medium" style={{ color: 'var(--t-3)' }}>{row.label}</span>
     </div>
   )
 }
 
 // ── Chart section ─────────────────────────────────────────────────────────────
-function Chart({
-  data, metric, title, icon: Icon,
-}: { data: BreakdownRow[]; metric: MetricDef; title: string; icon: React.ElementType }) {
+function Chart({ data, metric, title, icon: Icon }: { data: BreakdownRow[]; metric: MetricDef; title: string; icon: React.ElementType }) {
   const values = data.map(r => metric.getValue(r))
   const max    = Math.max(...values, 0)
-
-  // find top slot
-  const topIdx = values.indexOf(max)
-  const topRow = data[topIdx]
-
-  // sorted top-3
-  const top3 = [...data]
+  const top3   = [...data]
     .sort((a, b) => metric.getValue(b) - metric.getValue(a))
     .slice(0, 3)
     .filter(r => metric.getValue(r) > 0)
 
   return (
-    <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5 space-y-4">
-      {/* Header */}
+    <div className="rounded-2xl p-5 space-y-4" style={{ background: 'var(--s-850)', border: '1px solid var(--t-border)' }}>
       <div className="flex items-center gap-2">
-        <Icon className="w-4 h-4 text-indigo-400" />
-        <span className="text-sm font-semibold text-gray-200">{title}</span>
+        <Icon className="w-4 h-4" style={{ color: '#f97316' }} />
+        <span className="text-sm font-semibold" style={{ color: 'var(--t-1)' }}>{title}</span>
       </div>
 
-      {/* Bar chart */}
       <div className="flex gap-0.5 h-28 w-full">
         {data.map((row, i) => (
-          <HeatBar
-            key={row.key}
-            row={row}
-            metric={metric}
-            max={max}
-            isLast={i >= data.length - 3}
-          />
+          <HeatBar key={row.key} row={row} metric={metric} max={max} isLast={i >= data.length - 3} />
         ))}
       </div>
 
-      {/* Top 3 — labeled clearly */}
       {top3.length > 0 && (
         <div>
-          <p className="text-[11px] text-gray-500 font-medium mb-2">
+          <p className="text-[11px] font-medium mb-2" style={{ color: 'var(--t-3)' }}>
             Melhores {title === 'Por Hora do Dia' ? 'horários' : 'dias'} por {metric.label.toLowerCase()}
           </p>
           <div className="flex gap-2 flex-wrap">
             {top3.map((r, i) => (
-              <div key={r.key} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border ${
-                i === 0
-                  ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-300'
-                  : 'bg-surface-700 border-surface-600 text-gray-400'
-              }`}>
-                <span className="text-gray-600 tabular-nums">{i + 1}°</span>
+              <div
+                key={r.key}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs"
+                style={i === 0
+                  ? { background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.3)', color: '#f97316' }
+                  : { background: 'var(--s-800)',         border: '1px solid var(--t-border)',      color: 'var(--t-2)' }
+                }>
+                <span style={{ color: 'var(--t-3)' }} className="tabular-nums">{i + 1}°</span>
                 <span className="font-semibold">{r.label}</span>
-                <span className="text-gray-500">·</span>
+                <span style={{ color: 'var(--t-3)' }}>·</span>
                 <span>{fmt(metric.getValue(r), metric.format)}</span>
               </div>
             ))}
@@ -161,24 +140,28 @@ function MetricPicker({ value, onChange }: { value: string; onChange: (id: strin
     <div className="relative">
       <button
         onClick={() => setOpen(v => !v)}
-        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-sm text-gray-200 hover:border-surface-600 transition-colors">
+        className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors"
+        style={{ background: 'var(--s-850)', border: '1px solid var(--t-border)', color: 'var(--t-1)' }}>
         <span className="font-medium">{selected.label}</span>
-        <ChevronDown className={`w-3.5 h-3.5 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} style={{ color: 'var(--t-3)' }} />
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-          <div className="absolute top-full mt-1 left-0 z-30 w-52 bg-surface-800 border border-surface-700 rounded-xl shadow-xl py-1 overflow-hidden">
+          <div className="absolute top-full mt-1 left-0 z-30 w-52 rounded-xl shadow-xl py-1 overflow-hidden"
+            style={{ background: 'var(--s-850)', border: '1px solid var(--t-border)' }}>
             {METRICS.map(m => (
               <button
                 key={m.id}
                 onClick={() => { onChange(m.id); setOpen(false) }}
-                className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                  m.id === value
-                    ? 'text-indigo-300 bg-indigo-500/10'
-                    : 'text-gray-300 hover:bg-surface-700'
-                }`}>
+                className="w-full text-left px-3 py-2 text-sm transition-colors"
+                style={{
+                  color:      m.id === value ? '#f97316'      : 'var(--t-1)',
+                  background: m.id === value ? 'rgba(249,115,22,0.08)' : 'transparent',
+                }}
+                onMouseEnter={e => { if (m.id !== value) e.currentTarget.style.background = 'var(--s-800)' }}
+                onMouseLeave={e => { if (m.id !== value) e.currentTarget.style.background = 'transparent' }}>
                 {m.label}
               </button>
             ))}
@@ -209,34 +192,26 @@ const EXPORT_COLS = [
   { key: 'landingPageViews', header: 'Visualiz. Landing Page' },
 ] as const
 
-function toSheetRows(rows: BreakdownRow[]) {
-  return rows.map(r =>
+function exportBreakdownXLSX(hours: BreakdownRow[], days: BreakdownRow[], startDate: string, endDate: string) {
+  const wb  = XLSX.utils.book_new()
+  const toRows = (rows: BreakdownRow[]) => rows.map(r =>
     EXPORT_COLS.reduce<Record<string, string | number>>((acc, col) => {
       acc[col.header] = r[col.key as keyof BreakdownRow] as string | number
       return acc
     }, {})
   )
-}
-
-function exportBreakdownXLSX(hours: BreakdownRow[], days: BreakdownRow[], startDate: string, endDate: string) {
-  const wb = XLSX.utils.book_new()
-
-  const hoursSheet = XLSX.utils.json_to_sheet(toSheetRows(hours))
-  XLSX.utils.book_append_sheet(wb, hoursSheet, 'Por Hora do Dia')
-
-  const daysSheet = XLSX.utils.json_to_sheet(toSheetRows(days))
-  XLSX.utils.book_append_sheet(wb, daysSheet, 'Por Dia da Semana')
-
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(toRows(hours)), 'Por Hora do Dia')
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(toRows(days)),  'Por Dia da Semana')
   XLSX.writeFile(wb, `horarios_dias_${startDate}_${endDate}.xlsx`)
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────
 export default function TimeBreakdown({ workspaceId, startDate, endDate, campaignIds }: Props) {
-  const [metricId, setMetricId]   = useState('spend')
-  const [hours,    setHours]      = useState<BreakdownRow[]>([])
-  const [days,     setDays]       = useState<BreakdownRow[]>([])
-  const [loading,  setLoading]    = useState(false)
-  const [error,    setError]      = useState<string | null>(null)
+  const [metricId, setMetricId] = useState('spend')
+  const [hours,    setHours]    = useState<BreakdownRow[]>([])
+  const [days,     setDays]     = useState<BreakdownRow[]>([])
+  const [loading,  setLoading]  = useState(false)
+  const [error,    setError]    = useState<string | null>(null)
 
   const metric = METRICS.find(m => m.id === metricId) ?? METRICS[0]
 
@@ -244,16 +219,13 @@ export default function TimeBreakdown({ workspaceId, startDate, endDate, campaig
     setLoading(true); setError(null)
     const base = `/api/meta/breakdown?workspaceId=${workspaceId}&startDate=${startDate}&endDate=${endDate}`
       + (campaignIds.length ? `&campaignIds=${campaignIds.join(',')}` : '')
-
     try {
       const [rHours, rDays] = await Promise.all([
         fetch(`${base}&type=hours`).then(r => r.json()),
         fetch(`${base}&type=days`).then(r => r.json()),
       ])
-      if (rHours.success) setHours(rHours.data)
-      else throw new Error(rHours.error)
-      if (rDays.success)  setDays(rDays.data)
-      else throw new Error(rDays.error)
+      if (rHours.success) setHours(rHours.data); else throw new Error(rHours.error)
+      if (rDays.success)  setDays(rDays.data);   else throw new Error(rDays.error)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar dados')
     } finally {
@@ -270,40 +242,42 @@ export default function TimeBreakdown({ workspaceId, startDate, endDate, campaig
       {/* Header — sempre visível */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-gray-200">Desempenho por Horário e Dia da Semana</h3>
-          <p className="text-[11px] text-gray-500 mt-0.5">Em quais horários e dias sua conta gera mais resultado</p>
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--t-1)' }}>Desempenho por Horário e Dia da Semana</h3>
+          <p className="text-[11px] mt-0.5" style={{ color: 'var(--t-3)' }}>Em quais horários e dias sua conta gera mais resultado</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">Métrica:</span>
+          <span className="text-xs" style={{ color: 'var(--t-3)' }}>Métrica:</span>
           <MetricPicker value={metricId} onChange={setMetricId} />
           <button
             onClick={() => exportBreakdownXLSX(hours, days, startDate, endDate)}
             disabled={loading || (!hours.length && !days.length)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-xs text-gray-300 hover:border-indigo-500/50 hover:text-indigo-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: 'var(--s-850)', border: '1px solid var(--t-border)', color: 'var(--t-2)' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#f97316'; e.currentTarget.style.borderColor = 'rgba(249,115,22,0.4)' }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--t-2)'; e.currentTarget.style.borderColor = 'var(--t-border)' }}>
             <Download className="w-3.5 h-3.5" />
             Exportar XLSX
           </button>
         </div>
       </div>
 
-      {/* Conteúdo — responde ao estado */}
       {loading ? (
-        <div className="flex items-center justify-center py-20 text-gray-500 gap-3">
+        <div className="flex items-center justify-center py-20 gap-3" style={{ color: 'var(--t-3)' }}>
           <Loader2 className="w-5 h-5 animate-spin" />
           Carregando dados de horários...
         </div>
       ) : error ? (
-        <div className="px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-400">
+        <div className="px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-500">
           {error}
         </div>
       ) : !hasData ? (
-        <div className="text-center py-16 text-gray-600 text-sm">
+        <div className="text-center py-16 text-sm" style={{ color: 'var(--t-3)' }}>
           Sem dados para o período selecionado
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Chart data={hours} metric={metric} title="Por Hora do Dia" icon={Clock} />
-          <Chart data={days}  metric={metric} title="Por Dia da Semana" icon={CalendarDays} />
+          <Chart data={hours} metric={metric} title="Por Hora do Dia"    icon={Clock}        />
+          <Chart data={days}  metric={metric} title="Por Dia da Semana"  icon={CalendarDays} />
         </div>
       )}
     </div>

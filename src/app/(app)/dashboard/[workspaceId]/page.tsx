@@ -452,8 +452,8 @@ function MetricCard({
   const isFrequency = metricId === 'frequency'
   const freqHigh    = isFrequency && value >= 3
   const freqColor   = isFrequency
-    ? value >= 4 ? 'text-red-400' : value >= 3 ? 'text-orange-400' : 'text-gray-100'
-    : 'text-gray-100'
+    ? value >= 4 ? 'text-red-500' : value >= 3 ? 'text-orange-500' : ''
+    : ''
 
   const Icon = metric.icon
   return (
@@ -463,26 +463,30 @@ function MetricCard({
       onDragOver={onDragOver}
       onDrop={onDrop}
       onDragEnd={onDragEnd}
-      className={`relative bg-surface-800 border rounded-2xl p-5 transition-all select-none ${
-        isDragging ? 'opacity-40 scale-95'
-        : isOver   ? 'border-indigo-500/60 bg-surface-750 scale-[1.02]'
-        :            'border-surface-700 hover:border-surface-600'
-      }`}>
+      className="relative rounded-2xl p-5 transition-all select-none"
+      style={{
+        background:   'var(--s-850)',
+        border:       isDragging ? '1px solid var(--t-border)' : isOver ? '1px solid rgba(249,115,22,0.5)' : '1px solid var(--t-border)',
+        opacity:      isDragging ? 0.4 : 1,
+        transform:    isDragging ? 'scale(0.95)' : isOver ? 'scale(1.02)' : 'scale(1)',
+      }}>
       {/* Drag handle */}
-      <div className="absolute top-3 left-3 text-gray-600 cursor-grab active:cursor-grabbing">
+      <div className="absolute top-3 left-3 cursor-grab active:cursor-grabbing" style={{ color: 'var(--t-3)' }}>
         <GripVertical className="w-4 h-4" />
       </div>
       {/* Remove */}
       <button
         onClick={onRemove}
-        className="absolute top-3 right-3 p-1 rounded-lg text-gray-600 hover:text-gray-400
-          hover:bg-surface-700 transition-colors">
+        className="absolute top-3 right-3 p-1 rounded-lg transition-colors"
+        style={{ color: 'var(--t-3)' }}
+        onMouseEnter={e => (e.currentTarget.style.color = 'var(--t-1)')}
+        onMouseLeave={e => (e.currentTarget.style.color = 'var(--t-3)')}>
         <X className="w-3.5 h-3.5" />
       </button>
 
       <div className="mt-1 flex flex-col gap-3">
         <div className="flex items-center gap-2">
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center bg-surface-750 ${metric.color}`}>
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${metric.color}`} style={{ background: 'var(--s-800)' }}>
             <Icon className="w-4.5 h-4.5" />
           </div>
           {freqHigh && (
@@ -499,23 +503,27 @@ function MetricCard({
               onChange={e => setEditValue(e.target.value)}
               onBlur={handleLabelSubmit}
               onKeyDown={e => { if (e.key === 'Enter') handleLabelSubmit(); if (e.key === 'Escape') setEditing(false) }}
-              className="text-xs font-medium text-indigo-300 bg-transparent border-b border-indigo-500 outline-none w-full mb-1"
+              className="text-xs font-medium bg-transparent outline-none w-full mb-1"
+              style={{ color: '#f97316', borderBottom: '1px solid #f97316' }}
             />
           ) : (
             <p
-              className="text-xs text-gray-500 font-medium mb-1 cursor-pointer hover:text-indigo-400 transition-colors"
+              className="text-xs font-medium mb-1 cursor-pointer transition-colors"
+              style={{ color: 'var(--t-3)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#f97316')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--t-3)')}
               onDoubleClick={() => { setEditValue(displayLabel); setEditing(true) }}
               title="Clique duplo para editar o rótulo">
               {displayLabel}
             </p>
           )}
-          <p className={`text-2xl font-bold leading-none ${freqColor}`}>
+          <p className={`text-2xl font-bold leading-none ${freqColor}`} style={!freqColor ? { color: 'var(--t-1)' } : {}}>
             {formatValue(value, metric.format)}
           </p>
           {showDelta && prevValue! !== 0 && (
             <div className={`flex items-center gap-1 mt-1.5 text-xs font-medium ${
-              delta > 0 ? 'text-emerald-400' : delta < 0 ? 'text-red-400' : 'text-gray-500'
-            }`}>
+              delta > 0 ? 'text-emerald-500' : delta < 0 ? 'text-red-500' : ''
+            }`} style={delta === 0 ? { color: 'var(--t-3)' } : {}}>
               {delta > 0
                 ? <TrendingUp className="w-3 h-3" />
                 : delta < 0
@@ -538,17 +546,19 @@ function AddMetricModal({
   return (
     <>
       <div className="fixed inset-0 z-50 bg-black/60" onClick={onClose} />
-      <div className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
-        w-[420px] bg-surface-800 border border-surface-700 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-700">
-          <h3 className="text-sm font-semibold text-gray-200">Adicionar métrica</h3>
-          <button onClick={onClose} className="p-1 rounded text-gray-500 hover:text-gray-300 transition-colors">
+      <div className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] rounded-2xl overflow-hidden"
+        style={{ background: 'var(--s-900)', border: '1px solid var(--t-border)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--t-border)' }}>
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--t-1)' }}>Adicionar métrica</h3>
+          <button onClick={onClose} className="p-1 rounded transition-colors" style={{ color: 'var(--t-3)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--t-1)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--t-3)')}>
             <X className="w-4 h-4" />
           </button>
         </div>
         <div className="p-3 max-h-80 overflow-y-auto">
           {hidden.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-6">Todas as métricas já estão visíveis.</p>
+            <p className="text-sm text-center py-6" style={{ color: 'var(--t-3)' }}>Todas as métricas já estão visíveis.</p>
           ) : (
             <div className="space-y-1">
               {hidden.map(m => {
@@ -557,16 +567,17 @@ function AddMetricModal({
                   <button
                     key={m.id}
                     onClick={() => { onAdd(m.id); onClose() }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
-                      hover:bg-surface-700 transition-colors text-left">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center bg-surface-750 ${m.color}`}>
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-left"
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--s-800)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${m.color}`} style={{ background: 'var(--s-800)' }}>
                       <Icon className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="text-sm text-gray-200">{m.label}</p>
-                      <p className="text-xs text-gray-500 capitalize">{m.format}</p>
+                      <p className="text-sm" style={{ color: 'var(--t-1)' }}>{m.label}</p>
+                      <p className="text-xs capitalize" style={{ color: 'var(--t-3)' }}>{m.format}</p>
                     </div>
-                    <Plus className="w-4 h-4 text-gray-500 ml-auto" />
+                    <Plus className="w-4 h-4 ml-auto" style={{ color: 'var(--t-3)' }} />
                   </button>
                 )
               })}
@@ -587,14 +598,16 @@ function Th({ label, sortKey, currentKey, dir, onSort }: {
   return (
     <th
       onClick={() => onSort(sortKey)}
-      className="px-4 py-3 text-left text-xs font-semibold text-gray-500 cursor-pointer
-        hover:text-gray-300 transition-colors whitespace-nowrap select-none">
+      className="px-4 py-3 text-left text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap select-none"
+      style={{ color: 'var(--t-3)' }}
+      onMouseEnter={e => (e.currentTarget.style.color = 'var(--t-1)')}
+      onMouseLeave={e => (e.currentTarget.style.color = 'var(--t-3)')}>
       <div className="flex items-center gap-1">
         {label}
         {active
           ? dir === 'asc'
-            ? <ArrowUp className="w-3 h-3 text-indigo-400" />
-            : <ArrowDown className="w-3 h-3 text-indigo-400" />
+            ? <ArrowUp   className="w-3 h-3" style={{ color: '#f97316' }} />
+            : <ArrowDown className="w-3 h-3" style={{ color: '#f97316' }} />
           : <ArrowUpDown className="w-3 h-3 opacity-40" />}
       </div>
     </th>
@@ -611,24 +624,25 @@ function FunnelSection({ data }: { data: AggregatedData }) {
     { label: 'Compras',          value: data.purchases        },
   ]
   return (
-    <div className="bg-surface-800 border border-surface-700 rounded-2xl p-5">
-      <h3 className="text-sm font-semibold text-gray-300 mb-1">Funil de Conversão</h3>
+    <div className="rounded-2xl p-5" style={{ background: 'var(--s-850)', border: '1px solid var(--t-border)' }}>
+      <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--t-1)' }}>Funil de Conversão</h3>
       <div>
         {steps.map((step, i) => {
           const rate = i > 0 && steps[i - 1].value > 0
             ? (step.value / steps[i - 1].value) * 100
             : null
           return (
-            <div key={step.label} className="flex items-center justify-between py-2.5 border-b border-surface-700/50 last:border-0">
+            <div key={step.label} className="flex items-center justify-between py-2.5 last:border-0"
+              style={{ borderBottom: i < steps.length - 1 ? '1px solid var(--t-border)' : 'none' }}>
               <div className="flex items-center gap-2.5">
-                <span className="text-[11px] text-gray-600 w-3.5 tabular-nums">{i + 1}</span>
-                <span className="text-sm text-gray-300">{step.label}</span>
+                <span className="text-[11px] tabular-nums w-3.5" style={{ color: 'var(--t-3)' }}>{i + 1}</span>
+                <span className="text-sm" style={{ color: 'var(--t-2)' }}>{step.label}</span>
               </div>
               <div className="flex items-center gap-3">
                 {rate !== null && (
-                  <span className="text-xs text-gray-600">↓ {rate.toFixed(1)}%</span>
+                  <span className="text-xs" style={{ color: 'var(--t-3)' }}>↓ {rate.toFixed(1)}%</span>
                 )}
-                <span className="text-sm font-semibold text-gray-100 tabular-nums w-24 text-right">
+                <span className="text-sm font-semibold tabular-nums w-24 text-right" style={{ color: 'var(--t-1)' }}>
                   {fmtNumber(step.value)}
                 </span>
               </div>
@@ -678,20 +692,20 @@ function PaceSection({ daily, endDate }: { daily: CampaignInsight[]; endDate: st
   ]
 
   return (
-    <div className="bg-indigo-500/[0.07] border border-indigo-500/20 rounded-2xl px-5 py-4">
+    <div className="rounded-2xl px-5 py-4" style={{ background: 'rgba(249,115,22,0.06)', border: '1px solid rgba(249,115,22,0.2)' }}>
       <div className="flex items-center gap-2 mb-3.5">
-        <TrendingUp className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-        <span className="text-sm font-semibold text-indigo-300">Projeção de Ritmo</span>
-        <span className="text-xs text-gray-500">
+        <TrendingUp className="w-4 h-4 flex-shrink-0" style={{ color: '#f97316' }} />
+        <span className="text-sm font-semibold" style={{ color: '#f97316' }}>Projeção de Ritmo</span>
+        <span className="text-xs" style={{ color: 'var(--t-3)' }}>
           — {diasRestantes} {diasRestantes === 1 ? 'dia restante' : 'dias restantes'} no período, com base em {diasPassados} dias de dados
         </span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
         {items.map(item => (
           <div key={item.label}>
-            <p className="text-[11px] text-gray-500 font-medium mb-0.5">{item.label}</p>
-            <p className="text-lg font-bold text-white leading-tight">{item.proj}</p>
-            <p className="text-[11px] text-gray-600 mt-0.5">{item.avg}</p>
+            <p className="text-[11px] font-medium mb-0.5" style={{ color: 'var(--t-3)' }}>{item.label}</p>
+            <p className="text-lg font-bold leading-tight" style={{ color: 'var(--t-1)' }}>{item.proj}</p>
+            <p className="text-[11px] mt-0.5" style={{ color: 'var(--t-3)' }}>{item.avg}</p>
           </div>
         ))}
       </div>
@@ -704,27 +718,25 @@ function TopCampaigns({ rows }: { rows: CampaignInsight[] }) {
   const top = [...rows].sort((a, b) => b.spend - a.spend).slice(0, 5)
   if (!top.length) return null
   return (
-    <div className="bg-surface-800 border border-surface-700 rounded-2xl overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-surface-700">
-        <h3 className="text-sm font-semibold text-gray-300">Top Campanhas por Investimento</h3>
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--s-850)', border: '1px solid var(--t-border)' }}>
+      <div className="px-5 py-3.5" style={{ borderBottom: '1px solid var(--t-border)' }}>
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--t-1)' }}>Top Campanhas por Investimento</h3>
       </div>
-      <div className="divide-y divide-surface-700/50">
+      <div>
         {top.map((r, i) => (
-          <div key={r.campaignId} className="px-5 py-3">
-            {/* Name + spend */}
+          <div key={r.campaignId} className="px-5 py-3" style={{ borderBottom: i < top.length - 1 ? '1px solid var(--t-border)' : 'none' }}>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-[11px] text-gray-600 w-3.5 flex-shrink-0">{i + 1}</span>
-              <span className="text-sm font-medium text-gray-200 truncate flex-1" title={r.campaignName}>
+              <span className="text-[11px] w-3.5 flex-shrink-0" style={{ color: 'var(--t-3)' }}>{i + 1}</span>
+              <span className="text-sm font-medium truncate flex-1" style={{ color: 'var(--t-1)' }} title={r.campaignName}>
                 {r.campaignName}
               </span>
-              <span className="text-sm font-semibold text-emerald-400 flex-shrink-0">{fmtCurrency(r.spend)}</span>
+              <span className="text-sm font-semibold flex-shrink-0 text-emerald-500">{fmtCurrency(r.spend)}</span>
             </div>
-            {/* Inline metrics */}
-            <p className="text-[11px] text-gray-500 ml-5 leading-relaxed">
+            <p className="text-[11px] ml-5 leading-relaxed" style={{ color: 'var(--t-3)' }}>
               {fmtNumber(r.purchases)} compras
               {r.costPerPurchase > 0 && <> · {fmtCurrency(r.costPerPurchase)}/compra</>}
               {' '}· {fmtPercent(r.purchaseRate)} conv.
-              <span className="text-gray-700 mx-1.5">|</span>
+              <span className="mx-1.5" style={{ color: 'var(--t-border)' }}>|</span>
               {fmtNumber(r.leads)} leads
               {r.costPerLead > 0 && <> · {fmtCurrency(r.costPerLead)}/lead</>}
               {' '}· {fmtPercent(r.leadRate)} conv.
@@ -860,33 +872,34 @@ function EvolutionChart({ daily, workspaceId }: { daily: CampaignInsight[]; work
   }
 
   return (
-    <div className="bg-surface-800 border border-surface-700 rounded-2xl p-6">
+    <div className="rounded-2xl p-6" style={{ background: 'var(--s-850)', border: '1px solid var(--t-border)' }}>
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h3 className="text-sm font-semibold text-white">Evolução Diária</h3>
-          <p className="text-[11px] text-gray-500 mt-0.5">{data.length} dias com dados</p>
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--t-1)' }}>Evolução Diária</h3>
+          <p className="text-[11px] mt-0.5" style={{ color: 'var(--t-3)' }}>{data.length} dias com dados</p>
         </div>
 
         {/* Metric picker button */}
         <div className="relative" ref={pickerRef}>
           <button
             onClick={() => setShowPicker(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-colors ${
-              showPicker
-                ? 'bg-surface-600 border-surface-500 text-gray-200'
-                : 'bg-surface-700 border-surface-600 text-gray-400 hover:text-gray-200 hover:border-surface-500'
-            }`}>
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-colors"
+            style={{
+              background:   showPicker ? 'var(--s-800)' : 'var(--s-800)',
+              borderColor:  showPicker ? 'var(--t-border)' : 'var(--t-border)',
+              color:        'var(--t-2)',
+            }}>
             <Settings2 className="w-3.5 h-3.5" />
             Métricas
           </button>
 
           {showPicker && (
-            <div className="absolute right-0 top-full mt-2 z-50 w-72 bg-surface-800 border border-surface-700
-              rounded-2xl shadow-2xl shadow-black/60 overflow-hidden">
-              <div className="px-4 py-3 border-b border-surface-700">
-                <p className="text-xs font-semibold text-gray-200">Escolha as 4 métricas do gráfico</p>
-                <p className="text-[11px] text-gray-500 mt-0.5">
+            <div className="absolute right-0 top-full mt-2 z-50 w-72 rounded-2xl overflow-hidden"
+              style={{ background: 'var(--s-900)', border: '1px solid var(--t-border)', boxShadow: '0 16px 48px rgba(0,0,0,0.15)' }}>
+              <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--t-border)' }}>
+                <p className="text-xs font-semibold" style={{ color: 'var(--t-1)' }}>Escolha as 4 métricas do gráfico</p>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--t-3)' }}>
                   Clique em uma não selecionada para substituir <span style={{ color: activeDef?.color }}>
                     {activeDef?.label}
                   </span>
@@ -900,13 +913,13 @@ function EvolutionChart({ daily, workspaceId }: { daily: CampaignInsight[]; work
                     <button
                       key={m.key as string}
                       onClick={() => handlePickerClick(m.key as string)}
-                      className={`flex items-center gap-2 px-2.5 py-2 rounded-xl text-left text-xs transition-colors ${
-                        sel
-                          ? active
-                            ? 'bg-surface-600 text-gray-100'
-                            : 'bg-surface-700/60 text-gray-300 hover:bg-surface-600'
-                          : 'text-gray-500 hover:bg-surface-700 hover:text-gray-300'
-                      }`}>
+                      className="flex items-center gap-2 px-2.5 py-2 rounded-xl text-left text-xs transition-colors"
+                      style={{
+                        background: sel ? (active ? 'var(--s-800)' : 'var(--s-850)') : 'transparent',
+                        color:      sel ? 'var(--t-1)' : 'var(--t-3)',
+                      }}
+                      onMouseEnter={e => { if (!sel) e.currentTarget.style.background = 'var(--s-850)' }}
+                      onMouseLeave={e => { if (!sel) e.currentTarget.style.background = 'transparent' }}>
                       <span
                         className={`w-2.5 h-2.5 rounded-full flex-shrink-0 transition-opacity ${sel ? '' : 'opacity-30'}`}
                         style={{ background: m.color }}
@@ -930,17 +943,17 @@ function EvolutionChart({ daily, workspaceId }: { daily: CampaignInsight[]; work
             <button
               key={m.key as string}
               onClick={() => setActiveKey(m.key as string)}
-              className={`rounded-xl px-3 py-2.5 text-left transition-all border ${
-                on ? '' : 'border-surface-600 bg-surface-700/40 hover:bg-surface-700'
-              }`}
-              style={on ? { borderColor: m.color + '60', background: m.color + '12' } : {}}>
+              className="rounded-xl px-3 py-2.5 text-left transition-all"
+              style={on
+                ? { border: `1px solid ${m.color}60`, background: m.color + '12' }
+                : { border: '1px solid var(--t-border)', background: 'var(--s-800)' }}>
               <div className="flex items-center gap-1.5 mb-1">
                 <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: m.color }} />
-                <span className="text-[11px] font-medium truncate" style={{ color: on ? m.color : '#9ca3af' }}>
+                <span className="text-[11px] font-medium truncate" style={{ color: on ? m.color : 'var(--t-3)' }}>
                   {m.label}
                 </span>
               </div>
-              <p className="text-sm font-bold truncate" style={{ color: on ? m.color : '#d1d5db' }}>
+              <p className="text-sm font-bold truncate" style={{ color: on ? m.color : 'var(--t-1)' }}>
                 {fmtPill(m)}
               </p>
             </button>
@@ -957,16 +970,16 @@ function EvolutionChart({ daily, workspaceId }: { daily: CampaignInsight[]; work
               <stop offset="95%" stopColor={activeDef?.color} stopOpacity={0}   />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" vertical={false} />
           <XAxis
             dataKey="label"
-            tick={{ fill: '#6b7280', fontSize: 11 }}
+            tick={{ fill: 'var(--t-3)', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
             dy={8}
           />
           <YAxis
-            tick={{ fill: '#6b7280', fontSize: 11 }}
+            tick={{ fill: 'var(--t-3)', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
             width={62}
@@ -978,12 +991,13 @@ function EvolutionChart({ daily, workspaceId }: { daily: CampaignInsight[]; work
               if (!active || !payload?.length) return null
               const val = payload[0]?.value as number
               return (
-                <div className="bg-[#13151f] border border-surface-600 rounded-xl px-3.5 py-2.5 shadow-xl shadow-black/50">
-                  <p className="text-[11px] text-gray-500 mb-1">{label}</p>
+                <div className="rounded-xl px-3.5 py-2.5 shadow-xl"
+                  style={{ background: 'var(--s-900)', border: '1px solid var(--t-border)' }}>
+                  <p className="text-[11px] mb-1" style={{ color: 'var(--t-3)' }}>{label}</p>
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: activeDef?.color }} />
-                    <span className="text-xs text-gray-400">{activeDef?.label}</span>
-                    <span className="text-sm font-bold text-white ml-1">{fmtVal(val)}</span>
+                    <span className="text-xs" style={{ color: 'var(--t-2)' }}>{activeDef?.label}</span>
+                    <span className="text-sm font-bold ml-1" style={{ color: 'var(--t-1)' }}>{fmtVal(val)}</span>
                   </div>
                 </div>
               )
