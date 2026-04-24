@@ -611,7 +611,7 @@ export default function AuditPage() {
         </p>
       </div>
 
-      <Button onClick={audit} loading={auditing} size="lg" className="w-full !bg-indigo-600 hover:!bg-indigo-500">
+      <Button onClick={audit} loading={auditing} size="lg" className="w-full">
         {auditing
           ? <><Loader2 className="w-4 h-4 animate-spin" /> Analisando página...</>
           : <><ChartNoAxesCombined className="w-4 h-4" /> Iniciar webanalisis</>}

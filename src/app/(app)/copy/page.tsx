@@ -816,7 +816,7 @@ export default function CopyAgentPage() {
           </div>
         </div>
         <button onClick={openNewPersona}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold text-white transition-colors">
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-sm font-semibold text-white keep-white transition-colors">
           <Plus className="w-4 h-4" /> Nova persona
         </button>
       </div>
