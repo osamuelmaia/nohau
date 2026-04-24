@@ -4,7 +4,7 @@ import OpenAI, { toFile } from 'openai'
 import { prisma } from '@/services/db/client'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { unlink, stat, writeFile } from 'fs/promises'
+import { unlink, stat } from 'fs/promises'
 import { createReadStream } from 'fs'
 import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
@@ -14,7 +14,17 @@ export const maxDuration = 300
 const VIDEO_EXTS = /\.(mp4|mov|avi|mkv|webm|m4v)$/i
 const AUDIO_EXTS = /\.(mp3|m4a|wav|aac|ogg|flac)$/i
 
-// ── Download blob URL diretamente para disco (streaming, sem carregar em memória) ─
+// Whisper supports: mp3, mp4, mpeg, mpga, m4a, wav, webm (max 25 MB)
+const WHISPER_AUDIO_MIME: Record<string, string> = {
+  mp3:  'audio/mpeg',
+  m4a:  'audio/mp4',
+  wav:  'audio/wav',
+  ogg:  'audio/ogg',
+  flac: 'audio/flac',
+  aac:  'audio/aac',
+  webm: 'audio/webm',
+}
+
 async function downloadToFile(blobUrl: string, destPath: string): Promise<void> {
   const res = await fetch(blobUrl)
   if (!res.ok) throw new Error(`Falha ao baixar arquivo da nuvem: ${res.status} ${res.statusText}`)
@@ -25,28 +35,6 @@ async function downloadToFile(blobUrl: string, destPath: string): Promise<void> 
   )
 }
 
-// ── FFmpeg: re-encoda para MP3 32kbps mono 16kHz ──────────────────────────────
-async function reencodeAudio(inputPath: string, outputPath: string): Promise<void> {
-  const ffmpeg     = (await import('fluent-ffmpeg')).default
-  const ffmpegPath = (await import('ffmpeg-static')).default as string
-  ffmpeg.setFfmpegPath(ffmpegPath)
-
-  return new Promise((resolve, reject) => {
-    ffmpeg(inputPath)
-      .noVideo()
-      .audioCodec('libmp3lame')
-      .audioBitrate('32k')
-      .audioChannels(1)
-      .audioFrequency(16000)
-      .format('mp3')
-      .output(outputPath)
-      .on('end', () => resolve())
-      .on('error', (err: Error) => reject(new Error(`FFmpeg: ${err.message}`)))
-      .run()
-  })
-}
-
-// ── Route handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const settings = await prisma.workspace.findUnique({ where: { id: 'default' }, select: { openaiKey: true } })
   if (!settings?.openaiKey) {
@@ -56,8 +44,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let tempInput: string | null  = null
-  let tempOutput: string | null = null
+  let tempInput: string | null = null
 
   try {
     const body = await req.json()
@@ -67,44 +54,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'URL do arquivo não fornecida.' }, { status: 400 })
     }
 
-    // ── 1. Determina extensão e baixa arquivo para /tmp ───────────────────────
-    const realExt  = filename?.includes('.') ? filename.split('.').pop()! : 'bin'
-    tempInput = join(tmpdir(), `zima-in-${Date.now()}.${realExt}`)
-    await downloadToFile(blobUrl, tempInput)
-
     const isVideo = mimetype?.startsWith('video/') || VIDEO_EXTS.test(filename ?? '')
     const isAudio = mimetype?.startsWith('audio/') || AUDIO_EXTS.test(filename ?? '')
 
-    if (!isVideo && !isAudio) {
+    // Vídeos precisam de conversão — não suportado no ambiente serverless (sem FFmpeg)
+    if (isVideo) {
+      return NextResponse.json({
+        success: false,
+        error:   'Upload de vídeo não suportado no ambiente hospedado. Exporte o áudio do vídeo como MP3 e envie diretamente.',
+      }, { status: 400 })
+    }
+
+    if (!isAudio) {
       return NextResponse.json(
-        { success: false, error: 'Formato não suportado. Use MP4, MOV, MKV, MP3, M4A ou WAV.' },
+        { success: false, error: 'Formato não suportado. Use MP3, M4A, WAV ou OGG.' },
         { status: 400 },
       )
     }
 
-    // ── 2. Re-encoda se for vídeo OU se o áudio for > 24.5 MB ────────────────
-    const { size: inputSize } = await stat(tempInput)
-    const needsReencode = isVideo || inputSize > 24.5 * 1024 * 1024
+    // Baixa o arquivo para /tmp
+    const ext = filename?.includes('.') ? filename.split('.').pop()!.toLowerCase() : 'mp3'
+    tempInput = join(tmpdir(), `nohau-audio-${Date.now()}.${ext}`)
+    await downloadToFile(blobUrl, tempInput)
 
-    let mp3Path = tempInput
-    if (needsReencode) {
-      tempOutput = join(tmpdir(), `zima-out-${Date.now()}.mp3`)
-      await reencodeAudio(tempInput, tempOutput)
-      mp3Path = tempOutput
+    // Verifica tamanho (Whisper suporta até 25 MB)
+    const { size } = await stat(tempInput)
+    if (size > 25 * 1024 * 1024) {
+      return NextResponse.json({
+        success: false,
+        error:   `Arquivo muito grande (${(size / 1024 / 1024).toFixed(1)} MB). O Whisper suporta até 25 MB — ~90 min de MP3 64kbps. Divida em partes menores.`,
+      }, { status: 400 })
     }
 
-    // ── 3. Verifica tamanho final ─────────────────────────────────────────────
-    const { size: finalSize } = await stat(mp3Path)
-    if (finalSize > 24.5 * 1024 * 1024) {
-      return NextResponse.json(
-        { success: false, error: 'Áudio muito longo. O Whisper suporta até ~90 min. Divida em partes menores.' },
-        { status: 400 },
-      )
-    }
-
-    // ── 4. Transcreve com Whisper ─────────────────────────────────────────────
+    // Envia diretamente para o Whisper — suporta MP3, M4A, WAV, OGG nativamente
+    const audioMime = WHISPER_AUDIO_MIME[ext] ?? 'audio/mpeg'
     const openai    = new OpenAI({ apiKey: settings.openaiKey })
-    const audioFile = await toFile(createReadStream(mp3Path), 'audio.mp3', { type: 'audio/mpeg' })
+    const audioFile = await toFile(createReadStream(tempInput), `audio.${ext}`, { type: audioMime })
 
     const transcript = await openai.audio.transcriptions.create({
       file:            audioFile,
@@ -120,7 +105,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: msg }, { status: 500 })
 
   } finally {
-    if (tempInput)  await unlink(tempInput).catch(() => {})
-    if (tempOutput) await unlink(tempOutput).catch(() => {})
+    if (tempInput) await unlink(tempInput).catch(() => {})
   }
 }
