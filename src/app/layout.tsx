@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { ThemeScript } from '@/components/ThemeProvider'
+import ThemeProvider   from '@/components/ThemeProvider'
 
 export const metadata: Metadata = {
   title: 'Nohau Ads Manager',
@@ -8,8 +10,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className="dark">
-      <body>{children}</body>
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <ThemeScript />
+      </head>
+      <body>
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   )
 }

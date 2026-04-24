@@ -2,17 +2,18 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Zap, Youtube, Megaphone, ChartNoAxesCombined, PenLine, LayoutDashboard, LogOut, Settings } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Youtube, Megaphone, ChartNoAxesCombined, PenLine, LayoutDashboard, LogOut, Settings, Sun, Moon } from 'lucide-react'
 import WorkspaceSwitcher from '@/components/WorkspaceSwitcher'
 import { useSettingsDrawer } from '@/stores/settings-drawer'
 import type { DrawerSection } from '@/stores/settings-drawer'
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard',   icon: LayoutDashboard,     match: (p: string) => p.startsWith('/dashboard') || p === '/', section: 'meta' as DrawerSection },
-  { href: '/youtube',   label: 'YouTube Ops', icon: Youtube,             match: (p: string) => p.startsWith('/youtube'),               section: 'youtube' as DrawerSection },
-  { href: '/campaigns', label: 'Campanhas',   icon: Megaphone,           match: (p: string) => p.startsWith('/campaigns'),             section: 'meta' as DrawerSection },
-  { href: '/audit',     label: 'Webanalisis', icon: ChartNoAxesCombined, match: (p: string) => p.startsWith('/audit'),                 section: 'meta' as DrawerSection },
-  { href: '/copy',      label: 'Copy Agent',  icon: PenLine,             match: (p: string) => p.startsWith('/copy'),                  section: 'youtube' as DrawerSection },
+  { href: '/youtube',   label: 'YouTube',      icon: Youtube,             match: (p: string) => p.startsWith('/youtube'),               section: 'youtube' as DrawerSection },
+  { href: '/campaigns', label: 'Campanhas',    icon: Megaphone,           match: (p: string) => p.startsWith('/campaigns'),             section: 'meta' as DrawerSection },
+  { href: '/audit',     label: 'Analytics',    icon: ChartNoAxesCombined, match: (p: string) => p.startsWith('/audit'),                 section: 'meta' as DrawerSection },
+  { href: '/copy',      label: 'Copy',         icon: PenLine,             match: (p: string) => p.startsWith('/copy'),                  section: 'youtube' as DrawerSection },
 ]
 
 async function handleLogout() {
@@ -24,52 +25,99 @@ export default function NavHeader() {
   const path    = usePathname()
   const active  = NAV.find(n => n.match(path)) ?? NAV[0]
   const { openDrawer } = useSettingsDrawer()
+  const [isDark, setIsDark] = useState(false)
 
   const workspaceMatch = path.match(/^\/dashboard\/([^/]+)/)
   const workspaceId    = workspaceMatch?.[1] ?? 'default'
 
-  const handleSettings = () => {
-    openDrawer(workspaceId, active.section)
+  useEffect(() => {
+    setIsDark(document.documentElement.classList.contains('dark'))
+  }, [])
+
+  const toggleTheme = () => {
+    const next = !isDark
+    document.documentElement.classList.toggle('dark', next)
+    localStorage.setItem('nohau-theme', next ? 'dark' : 'light')
+    setIsDark(next)
   }
 
   return (
-    <header className="flex items-center justify-between px-6 py-3 bg-surface-900 border-b border-surface-700 sticky top-0 z-40">
-      {/* Logo + workspace switcher */}
+    <header
+      className="sticky top-0 z-40 flex items-center justify-between px-5 h-12 border-b"
+      style={{ backgroundColor: 'var(--s-900)', borderColor: 'var(--t-border)' }}>
+
+      {/* Left — logo + workspace */}
       <div className="flex items-center gap-3 flex-shrink-0">
-        <Link href="/" className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-gradient-brand flex items-center justify-center">
-            <Zap className="w-3.5 h-3.5 text-white" />
+        <Link href="/" className="flex items-center gap-2 group">
+          <div className="w-6 h-6 rounded-md bg-orange-500 flex items-center justify-center flex-shrink-0">
+            <span className="text-white keep-white text-[10px] font-black leading-none">N</span>
           </div>
-          <span className="font-bold text-sm text-white tracking-tight">Nohau</span>
+          <span className="font-semibold text-sm" style={{ color: 'var(--t-1)' }}>Nohau</span>
         </Link>
-        {/* Workspace switcher — only on dashboard routes */}
-        {workspaceMatch && <WorkspaceSwitcher currentId={workspaceId} />}
+
+        {workspaceMatch && (
+          <>
+            <span className="text-xs" style={{ color: 'var(--t-3)' }}>/</span>
+            <WorkspaceSwitcher currentId={workspaceId} />
+          </>
+        )}
       </div>
 
-      {/* Feature nav */}
-      <nav className="flex items-center gap-1 bg-surface-800 border border-surface-700 rounded-xl p-1">
-        {NAV.map(({ href, label, icon: Icon, match }) => (
-          <Link key={href} href={href}
-            className={`flex items-center gap-1.5 text-xs font-medium transition-colors px-3 py-1.5 rounded-lg ${
-              match(path) ? 'bg-surface-700 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-surface-700'
-            }`}>
-            <Icon className="w-3.5 h-3.5" />
-            {label}
-          </Link>
-        ))}
+      {/* Center — nav */}
+      <nav className="flex items-center gap-0.5">
+        {NAV.map(({ href, label, icon: Icon, match }) => {
+          const isActive = match(path)
+          return (
+            <Link
+              key={href}
+              href={href}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+              style={{
+                color:           isActive ? '#f97316' : 'var(--t-2)',
+                backgroundColor: isActive ? 'rgba(249,115,22,0.08)' : 'transparent',
+              }}>
+              <Icon className="w-3.5 h-3.5" />
+              {label}
+            </Link>
+          )
+        })}
       </nav>
 
-      {/* Right side actions */}
-      <div className="flex items-center gap-1 flex-shrink-0">
+      {/* Right — actions */}
+      <div className="flex items-center gap-0.5 flex-shrink-0">
+        {/* Theme toggle */}
         <button
-          onClick={handleSettings}
-          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-200 transition-colors px-3 py-1.5 rounded-lg hover:bg-surface-700">
+          onClick={toggleTheme}
+          title={isDark ? 'Modo claro' : 'Modo escuro'}
+          className="p-2 rounded-lg transition-colors"
+          style={{ color: 'var(--t-3)' }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--t-1)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--t-3)')}>
+          {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+        </button>
+
+        <button
+          onClick={() => openDrawer(workspaceId, active.section)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors"
+          style={{ color: 'var(--t-3)' }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--t-1)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--t-3)')}>
           <Settings className="w-3.5 h-3.5" />
           Config
         </button>
+
         <button
           onClick={handleLogout}
-          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-500/10">
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors"
+          style={{ color: 'var(--t-3)' }}
+          onMouseEnter={e => {
+            e.currentTarget.style.color = '#ef4444'
+            e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.08)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.color = 'var(--t-3)'
+            e.currentTarget.style.backgroundColor = 'transparent'
+          }}>
           <LogOut className="w-3.5 h-3.5" />
           Sair
         </button>

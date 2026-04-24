@@ -4,89 +4,119 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Surface color tokens ────────────────────────────────────────────────────── */
+:root {
+  color-scheme: light;
+
+  /* Light mode — clean whites */
+  --s-950: #ffffff;
+  --s-900: #fafafa;
+  --s-850: #f5f5f5;
+  --s-800: #f0f0f0;
+  --s-750: #e8e8e8;
+  --s-700: #e0e0e0;
+  --s-600: #cccccc;
+  --s-500: #aaaaaa;
+
+  /* Text tokens */
+  --t-1: #0f0f0f;
+  --t-2: #444444;
+  --t-3: #888888;
+  --t-border: #e0e0e0;
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* Dark mode — pure blacks */
+  --s-950: #080808;
+  --s-900: #0f0f0f;
+  --s-850: #141414;
+  --s-800: #1a1a1a;
+  --s-750: #222222;
+  --s-700: #2a2a2a;
+  --s-600: #333333;
+  --s-500: #444444;
+
+  /* Text tokens */
+  --t-1: #f0f0f0;
+  --t-2: #a0a0a0;
+  --t-3: #555555;
+  --t-border: #2a2a2a;
+}
+
+/* ── Base ────────────────────────────────────────────────────────────────────── */
 @layer base {
-  :root {
-    color-scheme: dark;
-  }
+  * { box-sizing: border-box; }
 
-  * {
-    box-sizing: border-box;
-  }
-
-  html {
-    @apply antialiased;
-  }
+  html { @apply antialiased; }
 
   body {
-    @apply bg-surface-950 text-gray-100 font-sans;
+    background-color: var(--s-950);
+    color: var(--t-1);
+    font-family: 'Inter', system-ui, sans-serif;
     font-feature-settings: 'cv01', 'cv03', 'cv04', 'cv11';
   }
 
-  /* Custom scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
+  /* ── Light-mode text inversions ──────────────────────────────────────────── */
+  /* Most components use dark-mode gray classes. Remap them for light mode.    */
+  html:not(.dark) .text-white   { color: #0f0f0f; }
+  html:not(.dark) .text-gray-50 { color: #0f0f0f; }
+  html:not(.dark) .text-gray-100 { color: #111111; }
+  html:not(.dark) .text-gray-200 { color: #222222; }
+  html:not(.dark) .text-gray-300 { color: #444444; }
+  /* gray-400 and above read fine on light backgrounds — leave them alone */
 
-  ::-webkit-scrollbar-track {
-    @apply bg-surface-900;
-  }
+  /* Protect text inside explicitly colored containers */
+  html:not(.dark) [class*='bg-orange-'] .text-white,
+  html:not(.dark) [class*='bg-orange-'].text-white,
+  html:not(.dark) [class*='bg-red-'] .text-white,
+  html:not(.dark) [class*='bg-red-'].text-white,
+  html:not(.dark) [class*='bg-emerald-'] .text-white,
+  html:not(.dark) [class*='bg-indigo-'] .text-white,
+  html:not(.dark) [class*='bg-indigo-'].text-white,
+  html:not(.dark) [class*='bg-violet-'] .text-white,
+  html:not(.dark) [class*='bg-blue-'] .text-white,
+  html:not(.dark) [class*='bg-zinc-9'] .text-white,
+  html:not(.dark) [class*='bg-neutral-9'] .text-white,
+  html:not(.dark) .keep-white { color: #ffffff !important; }
 
-  ::-webkit-scrollbar-thumb {
-    @apply bg-surface-600 rounded-full;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-surface-500;
-  }
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--s-900); }
+  ::-webkit-scrollbar-thumb { background: var(--s-600); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--s-500); }
 
   /* Selection */
-  ::selection {
-    @apply bg-brand-600/40 text-white;
-  }
+  ::selection { background: rgba(249,115,22,0.2); color: inherit; }
 }
 
+/* ── Component utilities ─────────────────────────────────────────────────────── */
 @layer components {
-  /* Focus ring utility */
   .focus-ring {
-    @apply focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-surface-900;
+    @apply focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:ring-offset-0;
   }
 
-  /* Glass effect */
-  .glass {
-    @apply bg-surface-800/80 backdrop-blur-sm border border-surface-700/50;
-  }
-
-  /* Code blocks */
-  pre {
-    @apply font-mono text-xs;
-  }
+  pre { @apply font-mono text-xs; }
 
   code {
-    @apply font-mono text-xs bg-surface-750 px-1.5 py-0.5 rounded;
+    @apply font-mono text-xs px-1.5 py-0.5 rounded;
+    background: var(--s-750);
+    color: #f97316;
   }
 }
 
+/* ── Utilities ───────────────────────────────────────────────────────────────── */
 @layer utilities {
-  /* Text gradient */
-  .text-gradient {
-    @apply bg-gradient-brand bg-clip-text text-transparent;
-  }
+  /* Force white text (e.g. on colored buttons) */
+  .keep-white { color: #ffffff !important; }
 
-  /* Hide number input arrows */
+  /* Semantic border color */
+  .border-theme { border-color: var(--t-border); }
+
   input[type='number']::-webkit-inner-spin-button,
-  input[type='number']::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
+  input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type='number'] { -moz-appearance: textfield; }
 
-  input[type='number'] {
-    -moz-appearance: textfield;
-  }
-
-  /* Select dark option */
-  select option {
-    @apply bg-surface-800 text-gray-100;
-  }
+  select option { background: var(--s-800); color: var(--t-1); }
 }
-

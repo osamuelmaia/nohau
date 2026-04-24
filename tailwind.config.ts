@@ -6,54 +6,49 @@ const config: Config = {
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        brand: {
-          50:  '#f0f4ff',
-          100: '#dde6ff',
-          200: '#c2d0ff',
-          300: '#9db1ff',
-          400: '#7488ff',
-          500: '#4f5fff',
-          600: '#3a3ef5',
-          700: '#2e2fd9',
-          800: '#2828af',
-          900: '#272889',
-          950: '#181851',
-        },
+        // Surface colors — driven by CSS variables so they flip with dark/light mode
         surface: {
-          950: '#0a0a0f',
-          900: '#111118',
-          850: '#16161f',
-          800: '#1c1c28',
-          750: '#222232',
-          700: '#2a2a3d',
-          600: '#363652',
-          500: '#4a4a6a',
+          950: 'var(--s-950)',
+          900: 'var(--s-900)',
+          850: 'var(--s-850)',
+          800: 'var(--s-800)',
+          750: 'var(--s-750)',
+          700: 'var(--s-700)',
+          600: 'var(--s-600)',
+          500: 'var(--s-500)',
+        },
+        // Single accent color — orange, like Claude
+        accent: {
+          DEFAULT: '#f97316',
+          hover:   '#ea580c',
         },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-brand': 'linear-gradient(135deg, #4f5fff 0%, #7c3aed 100%)',
-      },
       animation: {
-        'fade-in': 'fadeIn 0.2s ease-in-out',
-        'slide-in': 'slideIn 0.3s ease-out',
+        'fade-in':    'fadeIn 0.15s ease-in-out',
+        'slide-in':   'slideIn 0.2s ease-out',
+        'slide-up':   'slideUp 0.2s ease-out',
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
       keyframes: {
         fadeIn: {
-          '0%': { opacity: '0' },
+          '0%':   { opacity: '0' },
           '100%': { opacity: '1' },
         },
         slideIn: {
-          '0%': { transform: 'translateY(-10px)', opacity: '0' },
-          '100%': { transform: 'translateY(0)', opacity: '1' },
+          '0%':   { transform: 'translateX(12px)', opacity: '0' },
+          '100%': { transform: 'translateX(0)',    opacity: '1' },
+        },
+        slideUp: {
+          '0%':   { transform: 'translateY(8px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)',   opacity: '1' },
         },
       },
     },
