@@ -1054,7 +1054,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
   const [daily,            setDaily]            = useState<CampaignInsight[]>([])
   const [prevOverview,     setPrevOverview]     = useState<AggregatedData | null>(null)
   const [creatives,        setCreatives]        = useState<AdInsight[]>([])
-  const [creativesLoading, setCreativesLoading] = useState(false)
+  const [creativesLoading, setCreativesLoading] = useState(true)
   const [creativesError,   setCreativesError]   = useState<string | null>(null)
   const [creativeSortKey,  setCreativeSortKey]  = useState('spend')
   const [creativeSortDir,  setCreativeSortDir]  = useState<SortDir>('desc')
@@ -1191,6 +1191,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
     const cached = creativesCache.get(key)
     if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
       setCreatives(cached.data)
+      setCreativesLoading(false)
       return
     }
 
