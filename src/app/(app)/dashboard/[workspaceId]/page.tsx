@@ -73,6 +73,25 @@ const ALL_METRICS: MetricDef[] = [
 
 const DEFAULT_IDS = ['spend', 'purchases', 'purchaseRate', 'leads', 'leadRate', 'cpm', 'ctr', 'frequency', 'reach', 'impressions']
 
+// ── Session-level data cache (persists across navigation, resets on refresh) ──
+interface InsightsCacheEntry {
+  insights:    CampaignInsight[]
+  daily:       CampaignInsight[]
+  prevOverview: AggregatedData | null
+  ts:          number
+}
+interface CreativesCacheEntry {
+  data: AdInsight[]
+  ts:   number
+}
+const CACHE_TTL_MS    = 5 * 60 * 1000 // 5 minutes
+const dashCache       = new Map<string, InsightsCacheEntry>()
+const creativesCache  = new Map<string, CreativesCacheEntry>()
+
+function cacheKey(workspaceId: string, startDate: string, endDate: string, ids: string[]) {
+  return `${workspaceId}|${startDate}|${endDate}|${ids.slice().sort().join(',')}`
+}
+
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function toYMD(d: Date) { return d.toISOString().split('T')[0] }
 function today() { return toYMD(new Date()) }
@@ -1101,7 +1120,16 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
   }, [workspaceId])
 
   // ── Fetch insights ─────────────────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (force = false) => {
+    const key     = cacheKey(workspaceId, startDate, endDate, selectedIds)
+    const cached  = dashCache.get(key)
+    if (!force && cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+      setInsights(cached.insights)
+      setDaily(cached.daily)
+      setPrevOverview(cached.prevOverview)
+      return
+    }
+
     setLoading(true)
     setError(null)
     try {
@@ -1134,11 +1162,18 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
       if (!overviewJson.success) throw new Error(overviewJson.error)
       if (!dailyJson.success)    throw new Error(dailyJson.error)
 
+      const prevOverviewData = prevJson.success ? aggregate(prevJson.data) : null
+
       setInsights(overviewJson.data)
       setDaily(dailyJson.data)
-      if (prevJson.success) {
-        setPrevOverview(aggregate(prevJson.data))
-      }
+      setPrevOverview(prevOverviewData)
+
+      dashCache.set(key, {
+        insights:     overviewJson.data,
+        daily:        dailyJson.data,
+        prevOverview: prevOverviewData,
+        ts:           Date.now(),
+      })
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Erro ao carregar dados'
       setError(msg)
@@ -1152,6 +1187,13 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
 
   // ── Fetch creatives (lazy — only when tab is active) ──────────────────────
   const fetchCreatives = useCallback(async () => {
+    const key    = cacheKey(workspaceId, startDate, endDate, selectedIds)
+    const cached = creativesCache.get(key)
+    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+      setCreatives(cached.data)
+      return
+    }
+
     setCreativesLoading(true)
     setCreativesError(null)
     try {
@@ -1163,6 +1205,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
       const json = await res.json()
       if (!json.success) throw new Error(json.error)
       setCreatives(json.data)
+      creativesCache.set(key, { data: json.data, ts: Date.now() })
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Erro ao carregar criativos'
       setCreativesError(msg)
@@ -1252,7 +1295,7 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
             Relatório PDF
           </Link>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData(true)}
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700
               text-sm font-medium text-white transition-colors disabled:opacity-50">

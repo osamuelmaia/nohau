@@ -175,7 +175,7 @@ function Message({ message }: { message: ChatMessage }) {
 
 // ── Shared input box ──────────────────────────────────────────────────────────
 function InputBox({
-  inputRef, input, setInput, onKeyDown, sendMessage, loading, placeholderIdx, placeholderFade,
+  inputRef, input, setInput, onKeyDown, sendMessage, loading, placeholderIdx, placeholderFade, rows,
 }: {
   inputRef: React.RefObject<HTMLTextAreaElement>
   input: string
@@ -185,6 +185,7 @@ function InputBox({
   loading: boolean
   placeholderIdx: number
   placeholderFade: boolean
+  rows?: number
 }) {
   return (
     <div
@@ -198,11 +199,11 @@ function InputBox({
           onKeyDown={onKeyDown}
           disabled={loading}
           placeholder=""
-          rows={1}
+          rows={rows ?? 1}
           className="w-full bg-transparent text-sm resize-none focus:outline-none disabled:opacity-50 leading-relaxed"
           style={{
             color:       'var(--t-1)',
-            maxHeight:   '100px',
+            maxHeight:   '120px',
             overflowY:   'auto',
             fieldSizing: 'content',
           } as React.CSSProperties}
@@ -339,6 +340,7 @@ export default function DashboardChat({ workspaceId }: Props) {
   const isAtStart = messages.length === 0
 
   const inputBoxProps = { inputRef, input, setInput, onKeyDown, sendMessage, loading, placeholderIdx, placeholderFade }
+  const greetingInputProps = { ...inputBoxProps, rows: 3 }
 
   return (
     <>
@@ -400,7 +402,7 @@ export default function DashboardChat({ workspaceId }: Props) {
               </p>
 
               <div className="w-full">
-                <InputBox {...inputBoxProps} />
+                <InputBox {...greetingInputProps} />
               </div>
             </div>
 
