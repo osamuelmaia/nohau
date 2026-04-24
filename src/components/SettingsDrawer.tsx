@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, Eye, EyeOff, RefreshCw, CheckCircle2, XCircle, Bot, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Eye, EyeOff, RefreshCw, CheckCircle2, XCircle, Bot, Trash2, ChevronDown, ChevronUp, Building2, Zap, BarChart3, Youtube } from 'lucide-react'
 import { useSettingsDrawer } from '@/stores/settings-drawer'
 import toast from 'react-hot-toast'
 
@@ -44,17 +44,26 @@ const btnCls = `
 `
 
 // ── Section header ────────────────────────────────────────────────────────────
-function SectionHeader({ label, open, onToggle }: { label: string; open: boolean; onToggle: () => void }) {
+function SectionHeader({ icon: Icon, label, description, open, onToggle }: {
+  icon: React.ElementType; label: string; description: string; open: boolean; onToggle: () => void
+}) {
   return (
     <button
       onClick={onToggle}
-      className="w-full flex items-center justify-between py-2 group">
-      <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--t-3)' }}>
-        {label}
-      </span>
+      className="w-full flex items-start justify-between py-2 gap-3 group text-left">
+      <div className="flex items-start gap-3 flex-1 min-w-0">
+        <div className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center mt-0.5"
+          style={{ background: 'rgba(249,115,22,0.1)' }}>
+          <Icon className="w-3.5 h-3.5" style={{ color: '#f97316' }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold" style={{ color: 'var(--t-1)' }}>{label}</p>
+          <p className="text-[11px] mt-0.5" style={{ color: 'var(--t-3)' }}>{description}</p>
+        </div>
+      </div>
       {open
-        ? <ChevronUp  className="w-3.5 h-3.5" style={{ color: 'var(--t-3)' }} />
-        : <ChevronDown className="w-3.5 h-3.5" style={{ color: 'var(--t-3)' }} />}
+        ? <ChevronUp  className="w-3.5 h-3.5 mt-1.5 flex-shrink-0" style={{ color: 'var(--t-3)' }} />
+        : <ChevronDown className="w-3.5 h-3.5 mt-1.5 flex-shrink-0" style={{ color: 'var(--t-3)' }} />}
     </button>
   )
 }
@@ -476,10 +485,10 @@ function WorkspaceSection({ workspaceId }: { workspaceId: string }) {
 
 // ── Main drawer ───────────────────────────────────────────────────────────────
 const SECTIONS = [
-  { id: 'meta',      label: 'Meta Ads' },
-  { id: 'youtube',   label: 'YouTube' },
-  { id: 'analytics', label: 'Google Analytics' },
-  { id: 'workspace', label: 'Workspace' },
+  { id: 'workspace', label: 'Workspace',          icon: Building2,  description: 'Nome e identidade deste cliente no sistema' },
+  { id: 'meta',      label: 'Meta Ads',            icon: Zap,        description: 'Token de acesso, conta de anúncios e página do Facebook' },
+  { id: 'analytics', label: 'Google Analytics',    icon: BarChart3,  description: 'Integração GA4 para dados de sessões e conversões do site' },
+  { id: 'youtube',   label: 'YouTube',             icon: Youtube,    description: 'Chave OpenAI e prompt do agente de transcrição' },
 ] as const
 
 export default function SettingsDrawer() {
@@ -520,14 +529,14 @@ export default function SettingsDrawer() {
 
         {/* Scrollable content — all sections in one flow */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-0">
-          {SECTIONS.map(({ id, label }, i) => {
+          {SECTIONS.map(({ id, label, icon, description }, i) => {
             const isOpen = !collapsed[id]
             return (
               <div key={id}>
                 {/* Divider (not before first) */}
                 {i > 0 && <div className="my-4" style={{ borderTop: '1px solid var(--t-border)' }} />}
 
-                <SectionHeader label={label} open={isOpen} onToggle={() => toggle(id)} />
+                <SectionHeader icon={icon} label={label} description={description} open={isOpen} onToggle={() => toggle(id)} />
 
                 {isOpen && (
                   <div className="mt-3 pb-1 animate-fade-in">
