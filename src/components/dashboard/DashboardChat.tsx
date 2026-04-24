@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, KeyboardEvent } from 'react'
-import { Loader2, Sparkles, X, ArrowUp } from 'lucide-react'
+import { Loader2, Sparkles, X, ArrowUp, RotateCcw } from 'lucide-react'
 
 interface ChatMessage {
   role:        'user' | 'assistant'
@@ -187,9 +187,22 @@ export default function DashboardChat({ workspaceId }: Props) {
   const [loading,         setLoading]         = useState(false)
   const [placeholderIdx,  setPlaceholderIdx]  = useState(0)
   const [placeholderFade, setPlaceholderFade] = useState(true)
+  const [workspaceName,   setWorkspaceName]   = useState('')
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef  = useRef<HTMLTextAreaElement>(null)
+
+  // Fetch workspace name
+  useEffect(() => {
+    fetch('/api/workspaces')
+      .then(r => r.json())
+      .then(d => {
+        if (!d.success) return
+        const ws = d.data.find((w: { id: string; name: string }) => w.id === workspaceId)
+        if (ws) setWorkspaceName(ws.name)
+      })
+      .catch(() => {})
+  }, [workspaceId])
 
   // Rotate placeholder
   useEffect(() => {
@@ -297,8 +310,28 @@ export default function DashboardChat({ workspaceId }: Props) {
             animation:  'chatSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
           }}>
 
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-2.5 flex-shrink-0"
+            style={{ borderBottom: '1px solid var(--t-border)' }}>
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" />
+              <span className="text-xs font-medium truncate" style={{ color: 'var(--t-1)' }}>
+                {workspaceName || workspaceId}
+              </span>
+            </div>
+            <button
+              onClick={() => setMessages([WELCOME])}
+              title="Nova conversa"
+              className="p-1.5 rounded-lg transition-colors flex-shrink-0"
+              style={{ color: 'var(--t-3)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--t-1)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--t-3)')}>
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto pt-6 pb-2 space-y-5">
+          <div className="flex-1 overflow-y-auto pt-4 pb-2 space-y-5">
             {messages.map((m, i) => <Message key={i} message={m} />)}
 
             {/* Quick starts */}
