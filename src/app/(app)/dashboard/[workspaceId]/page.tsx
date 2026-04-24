@@ -17,6 +17,7 @@ import {
 import TimeBreakdown    from '@/components/dashboard/TimeBreakdown'
 import GA4Section       from '@/components/dashboard/GA4Section'
 import DateRangePicker  from '@/components/DateRangePicker'
+import DashboardChat    from '@/components/dashboard/DashboardChat'
 import toast from 'react-hot-toast'
 import type { CampaignInsight } from '@/services/meta/insights'
 import type { AdInsight } from '@/services/meta/creatives'
@@ -2004,6 +2005,8 @@ export default function DashboardPage({ params }: { params: { workspaceId: strin
           </div>
         </div>
       )}
+
+      <DashboardChat workspaceId={params.workspaceId} />
     </div>
   )
 }
