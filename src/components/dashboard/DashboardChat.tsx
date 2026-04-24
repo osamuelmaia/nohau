@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, KeyboardEvent } from 'react'
-import { Send, Trash2, Loader2, Sparkles, ChevronDown } from 'lucide-react'
+import { Loader2, Sparkles, X, ArrowUp } from 'lucide-react'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 interface ChatMessage {
   role:        'user' | 'assistant'
   content:     string
@@ -12,52 +11,40 @@ interface ChatMessage {
 
 interface Props { workspaceId: string }
 
-// ── Tool labels ───────────────────────────────────────────────────────────────
 const TOOL_LABELS: Record<string, string> = {
-  get_overview_metrics:    'Consultando métricas...',
-  get_campaign_list:       'Buscando campanhas...',
-  get_campaign_insights:   'Analisando campanhas...',
-  get_creative_performance:'Analisando criativos...',
-  get_daily_evolution:     'Buscando evolução diária...',
+  get_overview_metrics:     'Consultando métricas...',
+  get_campaign_list:        'Buscando campanhas...',
+  get_campaign_insights:    'Analisando campanhas...',
+  get_creative_performance: 'Analisando criativos...',
+  get_daily_evolution:      'Buscando evolução diária...',
 }
 
-// ── Rotating placeholder texts ────────────────────────────────────────────────
 const PLACEHOLDERS = [
-  'O que você quer analisar?',
-  'Qual campanha está com melhor ROAS?',
-  'Me mostre os criativos que mais gastaram',
-  'Como está o custo por lead esta semana?',
+  'Pergunte sobre suas campanhas...',
+  'Qual criativo está com melhor ROAS?',
+  'Como está o custo por lead?',
+  'Qual campanha está drenando budget?',
   'Qual dia da semana converte mais?',
-  'Compare o spend das campanhas ativas',
-  'Tem alguma campanha abaixo do esperado?',
-  'Qual criativo está puxando mais receita?',
-  'Me dê um resumo do mês',
+  'Me mostre a evolução desta semana',
 ]
 
-// ── Welcome message ───────────────────────────────────────────────────────────
+const QUICK_STARTS = [
+  'Qual campanha está drenando budget?',
+  'Me mostre os criativos com melhor ROAS',
+  'Como está o ritmo de gastos hoje?',
+  'Qual dia da semana converte mais?',
+]
+
 const WELCOME: ChatMessage = {
-  role: 'assistant',
-  content: `Olá. Sou seu analista de tráfego pago.
-
-Tenho acesso direto às suas campanhas, criativos e métricas — sem dashboards, sem filtros manuais. Só perguntar.
-
-**O que você pode descobrir:**
-- Qual criativo está performando melhor (e qual está drenando budget)
-- Comparativo de ROAS, CPL e CPA entre campanhas
-- Tendências por dia da semana e horário do dia
-- Evolução de métricas ao longo do período
-- Gargalos no funil — onde você está perdendo conversões
-
-Não precisa seguir template. Pode perguntar do jeito que você fala.`,
+  role:    'assistant',
+  content: 'Tenho acesso direto às suas campanhas — criativos, métricas, tendências, comparações.\n\nO que quer saber?',
 }
 
-// ── Markdown renderer ─────────────────────────────────────────────────────────
-function renderInline(text: string, isUser: boolean): React.ReactNode[] {
-  const col = isUser ? 'inherit' : 'var(--t-1)'
-  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/)
-  return parts.map((p, i) => {
+// ── Inline markdown ───────────────────────────────────────────────────────────
+function renderInline(text: string): React.ReactNode[] {
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((p, i) => {
     if (p.startsWith('**') && p.endsWith('**'))
-      return <strong key={i} style={{ color: col, fontWeight: 600 }}>{p.slice(2, -2)}</strong>
+      return <strong key={i} style={{ color: 'var(--t-1)', fontWeight: 600 }}>{p.slice(2, -2)}</strong>
     if (p.startsWith('`') && p.endsWith('`'))
       return (
         <code key={i} className="px-1 py-0.5 rounded text-xs font-mono"
@@ -69,7 +56,7 @@ function renderInline(text: string, isUser: boolean): React.ReactNode[] {
   })
 }
 
-function MarkdownBlock({ text, isUser = false }: { text: string; isUser?: boolean }) {
+function MarkdownBlock({ text }: { text: string }) {
   const lines = text.split('\n')
   const nodes: React.ReactNode[] = []
   let i = 0
@@ -77,34 +64,31 @@ function MarkdownBlock({ text, isUser = false }: { text: string; isUser?: boolea
   while (i < lines.length) {
     const line = lines[i]
 
-    // Table
     if (line.trim().startsWith('|')) {
-      const tableLines: string[] = []
-      while (i < lines.length && lines[i].trim().startsWith('|')) { tableLines.push(lines[i]); i++ }
-      const dataRows = tableLines.filter(l => !/^\s*\|[-:| ]+\|\s*$/.test(l))
-      if (dataRows.length > 0) {
-        const parseRow = (l: string) => l.split('|').map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1)
-        const [headerRow, ...bodyRows] = dataRows
+      const tl: string[] = []
+      while (i < lines.length && lines[i].trim().startsWith('|')) { tl.push(lines[i]); i++ }
+      const rows = tl.filter(l => !/^\s*\|[-:| ]+\|\s*$/.test(l))
+      if (rows.length > 0) {
+        const parse = (l: string) => l.split('|').map(c => c.trim()).filter((_, idx, a) => idx > 0 && idx < a.length - 1)
+        const [hdr, ...body] = rows
         nodes.push(
-          <div key={`t-${i}`} className="overflow-x-auto my-2">
+          <div key={`t-${i}`} className="overflow-x-auto my-3 rounded-lg" style={{ border: '1px solid var(--t-border)' }}>
             <table className="min-w-full text-xs border-collapse">
               <thead>
-                <tr>
-                  {parseRow(headerRow).map((cell, ci) => (
-                    <th key={ci} className="px-2.5 py-1.5 text-left font-medium whitespace-nowrap"
-                      style={{ color: 'var(--t-2)', borderBottom: '1px solid var(--t-border)' }}>
-                      {cell}
-                    </th>
+                <tr style={{ background: 'var(--s-850)' }}>
+                  {parse(hdr).map((c, ci) => (
+                    <th key={ci} className="px-3 py-2 text-left font-medium whitespace-nowrap"
+                      style={{ color: 'var(--t-2)', borderBottom: '1px solid var(--t-border)' }}>{c}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {bodyRows.map((row, ri) => (
-                  <tr key={ri} style={{ background: ri % 2 === 0 ? 'rgba(0,0,0,0.02)' : 'transparent' }}>
-                    {parseRow(row).map((cell, ci) => (
-                      <td key={ci} className="px-2.5 py-1.5 whitespace-nowrap"
-                        style={{ color: 'var(--t-1)', borderBottom: '1px solid var(--t-border)' }}>
-                        {renderInline(cell, isUser)}
+                {body.map((row, ri) => (
+                  <tr key={ri} style={{ background: ri % 2 === 0 ? 'transparent' : 'var(--s-900)' }}>
+                    {parse(row).map((c, ci) => (
+                      <td key={ci} className="px-3 py-2 whitespace-nowrap"
+                        style={{ color: 'var(--t-1)', borderBottom: ri < body.length - 1 ? '1px solid var(--t-border)' : 'none' }}>
+                        {renderInline(c)}
                       </td>
                     ))}
                   </tr>
@@ -117,69 +101,57 @@ function MarkdownBlock({ text, isUser = false }: { text: string; isUser?: boolea
       continue
     }
 
-    // Bullet list
     if (/^[-*] /.test(line)) {
       const items: string[] = []
       while (i < lines.length && /^[-*] /.test(lines[i])) { items.push(lines[i].replace(/^[-*] /, '')); i++ }
       nodes.push(
-        <ul key={`ul-${i}`} className="my-1 space-y-0.5 pl-4">
-          {items.map((item, ii) => (
-            <li key={ii} className="text-sm list-disc list-outside" style={{ color: isUser ? 'inherit' : 'var(--t-1)' }}>
-              {renderInline(item, isUser)}
-            </li>
+        <ul key={`ul-${i}`} className="my-1.5 space-y-1 pl-4">
+          {items.map((it, ii) => (
+            <li key={ii} className="text-sm list-disc list-outside" style={{ color: 'var(--t-1)' }}>{renderInline(it)}</li>
           ))}
         </ul>
       )
       continue
     }
 
-    // Numbered list
     if (/^\d+\. /.test(line)) {
       const items: string[] = []
       while (i < lines.length && /^\d+\. /.test(lines[i])) { items.push(lines[i].replace(/^\d+\. /, '')); i++ }
       nodes.push(
-        <ol key={`ol-${i}`} className="my-1 space-y-0.5 pl-4">
-          {items.map((item, ii) => (
-            <li key={ii} className="text-sm list-decimal list-outside" style={{ color: isUser ? 'inherit' : 'var(--t-1)' }}>
-              {renderInline(item, isUser)}
-            </li>
+        <ol key={`ol-${i}`} className="my-1.5 space-y-1 pl-4">
+          {items.map((it, ii) => (
+            <li key={ii} className="text-sm list-decimal list-outside" style={{ color: 'var(--t-1)' }}>{renderInline(it)}</li>
           ))}
         </ol>
       )
       continue
     }
 
-    // Heading
-    if (line.startsWith('### ') || line.startsWith('## ')) {
-      const text = line.replace(/^#{2,3} /, '')
-      nodes.push(<p key={`h-${i}`} className="text-sm font-semibold mt-2" style={{ color: isUser ? 'inherit' : 'var(--t-1)' }}>{renderInline(text, isUser)}</p>)
+    if (line.startsWith('## ') || line.startsWith('### ')) {
+      nodes.push(<p key={`h-${i}`} className="text-sm font-semibold mt-3 mb-1" style={{ color: 'var(--t-1)' }}>{renderInline(line.replace(/^#{2,3} /, ''))}</p>)
       i++; continue
     }
 
-    // Empty
     if (!line.trim()) { nodes.push(<div key={`br-${i}`} className="h-2" />); i++; continue }
 
-    // Paragraph
     nodes.push(
-      <p key={`p-${i}`} className="text-sm leading-relaxed" style={{ color: isUser ? 'inherit' : 'var(--t-1)' }}>
-        {renderInline(line, isUser)}
+      <p key={`p-${i}`} className="text-sm leading-relaxed" style={{ color: 'var(--t-1)' }}>
+        {renderInline(line)}
       </p>
     )
     i++
   }
 
-  return <div className="space-y-0.5">{nodes}</div>
+  return <>{nodes}</>
 }
 
 // ── Message ───────────────────────────────────────────────────────────────────
 function Message({ message }: { message: ChatMessage }) {
-  const isUser = message.role === 'user'
-
-  if (isUser) {
+  if (message.role === 'user') {
     return (
       <div className="flex justify-end px-4">
-        <div className="max-w-[82%] px-4 py-2.5 rounded-2xl rounded-br-sm text-sm"
-          style={{ background: 'var(--s-750)', color: 'var(--t-1)', border: '1px solid var(--t-border)' }}>
+        <div className="max-w-[78%] px-3.5 py-2.5 rounded-2xl rounded-br-sm text-sm text-white keep-white"
+          style={{ background: '#f97316', lineHeight: '1.5' }}>
           {message.content}
         </div>
       </div>
@@ -187,17 +159,19 @@ function Message({ message }: { message: ChatMessage }) {
   }
 
   return (
-    <div className="px-5 py-1">
+    <div className="px-5">
       {message.toolStatus ? (
-        <div className="flex items-center gap-2 text-xs py-1" style={{ color: 'var(--t-3)' }}>
-          <Loader2 className="w-3 h-3 animate-spin" style={{ color: '#f97316' }} />
+        <div className="flex items-center gap-2 text-xs py-0.5" style={{ color: 'var(--t-3)' }}>
+          <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" style={{ color: '#f97316' }} />
           {message.toolStatus}
         </div>
       ) : message.content ? (
-        <MarkdownBlock text={message.content} />
+        <div className="space-y-0.5">
+          <MarkdownBlock text={message.content} />
+        </div>
       ) : (
-        <div className="flex items-center gap-2 text-xs py-1" style={{ color: 'var(--t-3)' }}>
-          <Loader2 className="w-3 h-3 animate-spin" style={{ color: '#f97316' }} />
+        <div className="flex items-center gap-2 text-xs py-0.5" style={{ color: 'var(--t-3)' }}>
+          <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" style={{ color: '#f97316' }} />
           Pensando...
         </div>
       )}
@@ -205,7 +179,7 @@ function Message({ message }: { message: ChatMessage }) {
   )
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────
 export default function DashboardChat({ workspaceId }: Props) {
   const [open,            setOpen]            = useState(false)
   const [messages,        setMessages]        = useState<ChatMessage[]>([WELCOME])
@@ -214,63 +188,32 @@ export default function DashboardChat({ workspaceId }: Props) {
   const [placeholderIdx,  setPlaceholderIdx]  = useState(0)
   const [placeholderFade, setPlaceholderFade] = useState(true)
 
-  const bottomRef  = useRef<HTMLDivElement>(null)
-  const inputRef   = useRef<HTMLTextAreaElement>(null)
-  const storageKey = `nohau_chat_${workspaceId}`
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef  = useRef<HTMLTextAreaElement>(null)
 
-  // Rotate placeholder (always rotates)
+  // Rotate placeholder
   useEffect(() => {
-    const timer = setInterval(() => {
+    const t = setInterval(() => {
       setPlaceholderFade(false)
-      setTimeout(() => {
-        setPlaceholderIdx(i => (i + 1) % PLACEHOLDERS.length)
-        setPlaceholderFade(true)
-      }, 300)
+      setTimeout(() => { setPlaceholderIdx(i => (i + 1) % PLACEHOLDERS.length); setPlaceholderFade(true) }, 280)
     }, 3500)
-    return () => clearInterval(timer)
+    return () => clearInterval(t)
   }, [])
 
-  // Load history
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(storageKey)
-      if (saved) setMessages(JSON.parse(saved))
-    } catch {}
-  }, [storageKey])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+  useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 150) }, [open])
 
-  // Save history
-  useEffect(() => {
-    if (messages.length > 1) {
-      try { localStorage.setItem(storageKey, JSON.stringify(messages)) } catch {}
-    }
-  }, [messages, storageKey])
-
-  // Auto-scroll
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  // Focus on open
-  useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 100)
-  }, [open])
-
-  const clearHistory = useCallback(() => {
-    setMessages([WELCOME])
-    try { localStorage.removeItem(storageKey) } catch {}
-  }, [storageKey])
-
-  const sendMessage = useCallback(async () => {
-    const text = input.trim()
+  const sendMessage = useCallback(async (override?: string) => {
+    const text = (override ?? input).trim()
     if (!text || loading) return
 
     setInput('')
     setLoading(true)
 
-    const userMsg: ChatMessage      = { role: 'user',      content: text }
-    const placeholder: ChatMessage  = { role: 'assistant', content: '', toolStatus: 'Iniciando...' }
+    const userMsg:  ChatMessage = { role: 'user',      content: text }
+    const pending:  ChatMessage = { role: 'assistant', content: '', toolStatus: 'Iniciando...' }
 
-    setMessages(prev => [...prev, userMsg, placeholder])
+    setMessages(prev => [...prev, userMsg, pending])
 
     const apiMessages = [...messages, userMsg]
       .filter(m => m.content)
@@ -291,8 +234,7 @@ export default function DashboardChat({ workspaceId }: Props) {
 
       const reader  = res.body.getReader()
       const decoder = new TextDecoder()
-      let   buffer  = ''
-      let   content = ''
+      let buffer = '', content = ''
 
       while (true) {
         const { done, value } = await reader.read()
@@ -300,23 +242,15 @@ export default function DashboardChat({ workspaceId }: Props) {
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
         buffer = lines.pop() ?? ''
-
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue
           const raw = line.slice(6)
           if (raw === '[DONE]') continue
           try {
             const ev = JSON.parse(raw)
-            if (ev.type === 'tool_start') {
-              setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: '', toolStatus: TOOL_LABELS[ev.name] ?? 'Buscando dados...' }])
-            }
-            if (ev.type === 'text') {
-              content += ev.delta
-              setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content }])
-            }
-            if (ev.type === 'error') {
-              setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: `Erro: ${ev.message}` }])
-            }
+            if (ev.type === 'tool_start') setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: '', toolStatus: TOOL_LABELS[ev.name] ?? 'Buscando dados...' }])
+            if (ev.type === 'text')       { content += ev.delta; setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content }]) }
+            if (ev.type === 'error')      setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: `Erro: ${ev.message}` }])
           } catch {}
         }
       }
@@ -331,57 +265,80 @@ export default function DashboardChat({ workspaceId }: Props) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
   }
 
+  const isAtStart = messages.length <= 1
+
   return (
     <>
-      {/* Toggle button */}
+      {/* FAB */}
       <button
         onClick={() => setOpen(v => !v)}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 pl-3.5 pr-4 py-2.5 rounded-full shadow-xl transition-all duration-200"
+        className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200"
         style={{
-          background: open ? 'var(--s-750)' : '#0f0f0f',
-          border:     '1px solid var(--t-border)',
-          color:      open ? 'var(--t-2)' : '#ffffff',
+          background: '#f97316',
+          boxShadow:  open ? '0 2px 12px rgba(249,115,22,0.3)' : '0 4px 24px rgba(249,115,22,0.45)',
+          transform:  open ? 'scale(0.95)' : 'scale(1)',
         }}>
         {open
-          ? <><ChevronDown className="w-4 h-4" /><span className="text-xs font-medium">Fechar</span></>
-          : <><Sparkles className="w-4 h-4" style={{ color: '#f97316' }} /><span className="text-xs font-medium keep-white">Assistente IA</span></>
+          ? <X        className="w-5 h-5 text-white keep-white" />
+          : <Sparkles className="w-5 h-5 text-white keep-white" />
         }
       </button>
 
-      {/* Chat panel */}
+      {/* Panel */}
       {open && (
         <div
-          className="fixed bottom-20 right-6 z-50 flex flex-col rounded-2xl overflow-hidden shadow-2xl animate-slide-up"
+          className="fixed bottom-[88px] right-6 z-50 flex flex-col rounded-2xl overflow-hidden"
           style={{
-            width:     'min(480px, calc(100vw - 24px))',
-            height:    'min(620px, calc(100vh - 120px))',
+            width:      'min(460px, calc(100vw - 24px))',
+            height:     'min(580px, calc(100vh - 120px))',
             background: 'var(--s-900)',
-            border:    '1px solid var(--t-border)',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px var(--t-border)',
+            border:     '1px solid var(--t-border)',
+            boxShadow:  '0 24px 64px rgba(0,0,0,0.2), 0 4px 16px rgba(0,0,0,0.08)',
+            animation:  'chatSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
           }}>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto py-4 space-y-4">
-            {/* Clear button floating top-right */}
-            <div className="flex justify-end px-4 -mt-1 mb-0">
-              <button onClick={clearHistory} title="Nova conversa"
-                className="p-1.5 rounded-lg transition-colors"
-                style={{ color: 'var(--t-3)' }}
-                onMouseEnter={e => (e.currentTarget.style.color = 'var(--t-1)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'var(--t-3)')}>
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
+          <div className="flex-1 overflow-y-auto pt-6 pb-2 space-y-5">
             {messages.map((m, i) => <Message key={i} message={m} />)}
+
+            {/* Quick starts */}
+            {isAtStart && !loading && (
+              <div className="px-5 pt-1 flex flex-col gap-2">
+                {QUICK_STARTS.map(q => (
+                  <button
+                    key={q}
+                    onClick={() => sendMessage(q)}
+                    className="text-left px-3.5 py-2.5 rounded-xl text-sm transition-all"
+                    style={{
+                      border:     '1px solid var(--t-border)',
+                      color:      'var(--t-2)',
+                      background: 'transparent',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = 'rgba(249,115,22,0.4)'
+                      e.currentTarget.style.color       = 'var(--t-1)'
+                      e.currentTarget.style.background  = 'rgba(249,115,22,0.04)'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = 'var(--t-border)'
+                      e.currentTarget.style.color       = 'var(--t-2)'
+                      e.currentTarget.style.background  = 'transparent'
+                    }}>
+                    {q}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <div ref={bottomRef} />
           </div>
 
-          {/* Input area */}
-          <div className="flex-shrink-0 px-4 pb-4 pt-2" style={{ borderTop: '1px solid var(--t-border)' }}>
+          {/* Input */}
+          <div className="flex-shrink-0 p-3" style={{ borderTop: '1px solid var(--t-border)' }}>
             <div
-              className="rounded-xl overflow-hidden"
+              className="flex items-end gap-2 rounded-xl px-3.5 py-2.5"
               style={{ background: 'var(--s-800)', border: '1px solid var(--t-border)' }}>
-              <div className="relative">
+              <div className="relative flex-1 min-w-0">
                 <textarea
                   ref={inputRef}
                   value={input}
@@ -390,18 +347,17 @@ export default function DashboardChat({ workspaceId }: Props) {
                   disabled={loading}
                   placeholder=""
                   rows={1}
-                  className="w-full px-4 pt-3 pb-2 text-sm resize-none focus:outline-none disabled:opacity-50 bg-transparent"
+                  className="w-full bg-transparent text-sm resize-none focus:outline-none disabled:opacity-50 leading-relaxed"
                   style={{
                     color:       'var(--t-1)',
-                    maxHeight:   '120px',
+                    maxHeight:   '100px',
                     overflowY:   'auto',
                     fieldSizing: 'content',
                   } as React.CSSProperties}
                 />
-                {/* Animated placeholder overlay */}
                 {!input && (
                   <span
-                    className="absolute top-3 left-4 text-sm pointer-events-none select-none"
+                    className="absolute inset-0 text-sm pointer-events-none select-none leading-relaxed"
                     style={{
                       color:      'var(--t-3)',
                       opacity:    placeholderFade ? 1 : 0,
@@ -411,25 +367,32 @@ export default function DashboardChat({ workspaceId }: Props) {
                   </span>
                 )}
               </div>
-              <div className="flex items-center justify-end px-3 pb-2.5">
-                <button
-                  onClick={sendMessage}
-                  disabled={!input.trim() || loading}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center transition-all disabled:opacity-30"
-                  style={{
-                    background: input.trim() && !loading ? '#f97316' : 'var(--s-700)',
-                    color:      'white',
-                  }}>
-                  {loading
-                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    : <Send className="w-3.5 h-3.5" />
-                  }
-                </button>
-              </div>
+
+              <button
+                onClick={() => sendMessage()}
+                disabled={!input.trim() || loading}
+                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all"
+                style={{
+                  background: input.trim() && !loading ? '#f97316' : 'transparent',
+                  border:     `1px solid ${input.trim() && !loading ? '#f97316' : 'var(--t-border)'}`,
+                  opacity:    !input.trim() && !loading ? 0.4 : 1,
+                }}>
+                {loading
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: '#f97316' }} />
+                  : <ArrowUp  className="w-3.5 h-3.5" style={{ color: input.trim() ? '#ffffff' : 'var(--t-2)' }} />
+                }
+              </button>
             </div>
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes chatSlideUp {
+          from { opacity: 0; transform: translateY(10px) scale(0.98); }
+          to   { opacity: 1; transform: translateY(0)   scale(1);    }
+        }
+      `}</style>
     </>
   )
 }
