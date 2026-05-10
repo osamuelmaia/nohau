@@ -101,6 +101,7 @@ function MetaSection({ workspaceId }: { workspaceId: string }) {
   const [testResult,     setTestResult]     = useState<{ ok: boolean; name?: string } | null>(null)
   const [accounts,       setAccounts]       = useState<AdAccount[]>([])
   const [loadingAcc,     setLoadingAcc]     = useState(false)
+  const [accountsError,  setAccountsError]  = useState<string | null>(null)
   const [selAccount,     setSelAccount]     = useState('')
   const [selAccountName, setSelAccountName] = useState('')
   const [saving,         setSaving]         = useState(false)
@@ -131,21 +132,33 @@ function MetaSection({ workspaceId }: { workspaceId: string }) {
   }
 
   const loadAccounts = async () => {
-    if (!token.trim() && !hasToken) return toast.error('Cole o token primeiro')
+    if (!token.trim() && !hasToken) {
+      setAccountsError('Configure o token de acesso acima antes de buscar contas.')
+      return
+    }
     setLoadingAcc(true)
+    setAccountsError(null)
     try {
       if (token.trim()) {
-        await fetch(`/api/workspaces/${workspaceId}`, {
+        const patchRes = await fetch(`/api/workspaces/${workspaceId}`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ metaToken: token }),
         })
+        if (!patchRes.ok) throw new Error('Erro ao salvar o token. Tente novamente.')
         setHasToken(true)
       }
       const res  = await fetch(`/api/meta/accounts?workspaceId=${workspaceId}`)
       const json = await res.json()
-      if (json.success) setAccounts(json.data)
-      else toast.error(json.error)
-    } catch { toast.error('Erro ao buscar contas') }
-    setLoadingAcc(false)
+      if (json.success) {
+        setAccounts(json.data)
+        if (json.data.length === 0) setAccountsError('Nenhuma conta de anúncios encontrada para este token.')
+      } else {
+        setAccountsError(json.error ?? 'Erro ao buscar contas.')
+      }
+    } catch (e) {
+      setAccountsError(e instanceof Error ? e.message : 'Erro ao buscar contas. Verifique o token.')
+    } finally {
+      setLoadingAcc(false)
+    }
   }
 
   const save = async () => {
@@ -174,7 +187,7 @@ function MetaSection({ workspaceId }: { workspaceId: string }) {
             <input
               type={showToken ? 'text' : 'password'}
               value={token}
-              onChange={e => setToken(e.target.value)}
+              onChange={e => { setToken(e.target.value); setAccountsError(null) }}
               placeholder={hasToken ? '••••••••  (deixe vazio para manter)' : 'EAAxxxxxxx...'}
               className={inputCls + ' pr-9'}
               style={inputStyle}
@@ -230,15 +243,22 @@ function MetaSection({ workspaceId }: { workspaceId: string }) {
             </select>
           ) : (
             <div className="flex-1 px-3 py-2 rounded-lg text-xs" style={{ background: 'var(--s-850)', border: '1px solid var(--t-border)', color: 'var(--t-3)' }}>
-              Clique em "Buscar" para listar as contas
+              {selAccountName ? `Conta salva: ${selAccountName}` : 'Clique em "Buscar" para listar as contas'}
             </div>
           )}
-          <button onClick={loadAccounts} disabled={loadingAcc} className={btnCls + ' disabled:opacity-50'}
+          <button
+            onClick={loadAccounts}
+            disabled={loadingAcc || (!token.trim() && !hasToken)}
+            className={btnCls + ' disabled:opacity-40 disabled:cursor-not-allowed'}
+            title={!token.trim() && !hasToken ? 'Insira o token acima primeiro' : 'Buscar contas de anúncios'}
             style={{ background: 'var(--s-800)', border: '1px solid var(--t-border)', color: 'var(--t-1)' }}>
             <RefreshCw className={`w-3.5 h-3.5 ${loadingAcc ? 'animate-spin' : ''}`} />
             Buscar
           </button>
         </div>
+        {accountsError && (
+          <p className="mt-1.5 text-xs" style={{ color: '#ef4444' }}>{accountsError}</p>
+        )}
       </div>
 
       <button onClick={save} disabled={saving}
