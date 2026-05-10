@@ -104,6 +104,9 @@ function MetaSection({ workspaceId }: { workspaceId: string }) {
   const [accountsError,  setAccountsError]  = useState<string | null>(null)
   const [selAccount,     setSelAccount]     = useState('')
   const [selAccountName, setSelAccountName] = useState('')
+  const [manualId,       setManualId]       = useState('')
+  const [manualLoading,  setManualLoading]  = useState(false)
+  const [manualError,    setManualError]    = useState<string | null>(null)
   const [saving,         setSaving]         = useState(false)
 
   const load = useCallback(() => {
@@ -159,6 +162,27 @@ function MetaSection({ workspaceId }: { workspaceId: string }) {
     } finally {
       setLoadingAcc(false)
     }
+  }
+
+  const useManualId = async () => {
+    if (!manualId.trim()) return
+    setManualLoading(true)
+    setManualError(null)
+    try {
+      const id  = manualId.trim().replace(/^act_/, '')
+      const res  = await fetch(`/api/meta/accounts?workspaceId=${workspaceId}&adAccountId=${id}`)
+      const json = await res.json()
+      if (json.success && json.data?.[0]) {
+        const acc = json.data[0] as AdAccount
+        setSelAccount(acc.id)
+        setSelAccountName(acc.name)
+        setAccounts(prev => prev.find(a => a.id === acc.id) ? prev : [...prev, acc])
+        setManualId('')
+      } else {
+        setManualError(json.error ?? 'ID inválido ou não encontrado')
+      }
+    } catch { setManualError('Erro ao validar ID') }
+    setManualLoading(false)
   }
 
   const save = async () => {
@@ -259,6 +283,32 @@ function MetaSection({ workspaceId }: { workspaceId: string }) {
         {accountsError && (
           <p className="mt-1.5 text-xs" style={{ color: '#ef4444' }}>{accountsError}</p>
         )}
+
+        {/* Manual ID fallback */}
+        <div className="mt-2 rounded-lg px-3 py-2.5 space-y-2" style={{ background: 'var(--s-850)', border: '1px solid var(--t-border)' }}>
+          <p className="text-[11px]" style={{ color: 'var(--t-3)' }}>
+            Não encontrou a conta? Cole o ID do Gerenciador de Anúncios Meta (<code className="font-mono">act_XXXXXXXX</code>)
+          </p>
+          <div className="flex gap-2">
+            <input
+              value={manualId}
+              onChange={e => { setManualId(e.target.value); setManualError(null) }}
+              onKeyDown={e => { if (e.key === 'Enter') useManualId() }}
+              placeholder="act_123456789 ou 123456789"
+              className={inputCls + ' flex-1 text-xs'}
+              style={inputStyle}
+            />
+            <button
+              onClick={useManualId}
+              disabled={manualLoading || !manualId.trim()}
+              className={btnCls + ' disabled:opacity-40'}
+              style={{ background: 'var(--s-800)', border: '1px solid var(--t-border)', color: 'var(--t-1)' }}>
+              <RefreshCw className={`w-3.5 h-3.5 ${manualLoading ? 'animate-spin' : ''}`} />
+              Usar
+            </button>
+          </div>
+          {manualError && <p className="text-xs" style={{ color: '#ef4444' }}>{manualError}</p>}
+        </div>
       </div>
 
       <button onClick={save} disabled={saving}
