@@ -1,0 +1,35 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Workspace {
+  id                String   @id @default(cuid())
+  name              String   @default("Dashboard Principal")
+  metaToken         String?
+  adAccountId       String?
+  adAccountName     String?
+  pageId            String?
+  ga4PropertyId     String?
+  ga4ServiceAccount String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model ApiLog {
+  id           String   @id @default(cuid())
+  operation    String
+  method       String
+  endpoint     String
+  requestBody  String   @default("")
+  responseBody String   @default("")
+  statusCode   Int?
+  success      Boolean
+  errorMessage String   @default("")
+  durationMs   Int?
+  createdAt    DateTime @default(now())
+}

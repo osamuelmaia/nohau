@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "src/app/api/meta/transcribe/route.ts": { "maxDuration": 300 },
+    "src/app/api/meta/generate/route.ts":   { "maxDuration": 60 },
+    "src/app/api/meta/copy/route.ts":        { "maxDuration": 60 },
+    "src/app/api/meta/publish/route.ts":     { "maxDuration": 60 },
+    "src/app/api/meta/audit/route.ts":       { "maxDuration": 60 },
+    "src/app/api/meta/export/route.ts":      { "maxDuration": 30 }
+  }
+}
