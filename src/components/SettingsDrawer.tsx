@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, Eye, EyeOff, RefreshCw, CheckCircle2, XCircle, Bot, Trash2, ChevronDown, ChevronUp, Building2, Zap, BarChart3, Youtube } from 'lucide-react'
+import { X, Eye, EyeOff, RefreshCw, CheckCircle2, XCircle, Bot, Trash2, ChevronDown, ChevronUp, Building2, Zap, BarChart3, Youtube, Plus, PlusCircle } from 'lucide-react'
 import { useSettingsDrawer } from '@/stores/settings-drawer'
 import toast from 'react-hot-toast'
 
@@ -91,14 +91,37 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-// ── Meta Ads section ──────────────────────────────────────────────────────────
-function MetaSection({ workspaceId }: { workspaceId: string }) {
+// ── Linked account card ───────────────────────────────────────────────────────
+interface LinkedAccount { id: string; adAccountId: string; adAccountName?: string | null; label?: string | null; pageId?: string | null }
+
+function LinkedAccountCard({ account, onRemove }: { account: LinkedAccount; onRemove: () => void }) {
+  const display = account.label ?? account.adAccountName ?? account.adAccountId
+  const sub     = account.label ? (account.adAccountName ?? account.adAccountId) : account.adAccountId
+  return (
+    <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg" style={{ background: 'var(--s-850)', border: '1px solid var(--t-border)' }}>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium truncate" style={{ color: 'var(--t-1)' }}>{display}</p>
+        {sub !== display && <p className="text-[11px] truncate mt-0.5" style={{ color: 'var(--t-3)' }}>{sub}</p>}
+      </div>
+      <button onClick={onRemove} className="flex-shrink-0 p-1 rounded transition-colors"
+        title="Remover conta"
+        style={{ color: 'var(--t-3)' }}
+        onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+        onMouseLeave={e => (e.currentTarget.style.color = 'var(--t-3)')}>
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  )
+}
+
+// ── Add-account form ──────────────────────────────────────────────────────────
+function AddAccountForm({ workspaceId, onAdded }: { workspaceId: string; onAdded: () => void }) {
   const [token,          setToken]          = useState('')
-  const [hasToken,       setHasToken]       = useState(false)
-  const [pageId,         setPageId]         = useState('')
   const [showToken,      setShowToken]      = useState(false)
   const [testing,        setTesting]        = useState(false)
   const [testResult,     setTestResult]     = useState<{ ok: boolean; name?: string } | null>(null)
+  const [label,          setLabel]          = useState('')
+  const [pageId,         setPageId]         = useState('')
   const [accounts,       setAccounts]       = useState<AdAccount[]>([])
   const [loadingAcc,     setLoadingAcc]     = useState(false)
   const [accountsError,  setAccountsError]  = useState<string | null>(null)
@@ -108,20 +131,6 @@ function MetaSection({ workspaceId }: { workspaceId: string }) {
   const [manualLoading,  setManualLoading]  = useState(false)
   const [manualError,    setManualError]    = useState<string | null>(null)
   const [saving,         setSaving]         = useState(false)
-
-  const load = useCallback(() => {
-    fetch('/api/workspaces').then(r => r.json()).then(d => {
-      if (!d.success) return
-      const ws = d.data.find((w: { id: string; hasToken?: boolean; adAccountId?: string; adAccountName?: string; pageId?: string }) => w.id === workspaceId)
-      if (!ws) return
-      setHasToken(!!ws.hasToken)
-      setSelAccount(ws.adAccountId ?? '')
-      setSelAccountName(ws.adAccountName ?? '')
-      setPageId(ws.pageId ?? '')
-    })
-  }, [workspaceId])
-
-  useEffect(() => { load() }, [load])
 
   const testToken = async () => {
     if (!token.trim()) return toast.error('Cole o token primeiro')
@@ -135,39 +144,30 @@ function MetaSection({ workspaceId }: { workspaceId: string }) {
   }
 
   const loadAccounts = async () => {
-    if (!token.trim() && !hasToken) {
-      setAccountsError('Configure o token de acesso acima antes de buscar contas.')
-      return
-    }
-    setLoadingAcc(true)
-    setAccountsError(null)
+    if (!token.trim()) { setAccountsError('Cole o token de acesso acima.'); return }
+    setLoadingAcc(true); setAccountsError(null)
     try {
-      if (token.trim()) {
-        const patchRes = await fetch(`/api/workspaces/${workspaceId}`, {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ metaToken: token }),
-        })
-        if (!patchRes.ok) throw new Error('Erro ao salvar o token. Tente novamente.')
-        setHasToken(true)
-      }
+      // Temporarily save the token so the accounts endpoint can use it
+      const patchRes = await fetch(`/api/workspaces/${workspaceId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ metaToken: token }),
+      })
+      if (!patchRes.ok) throw new Error('Erro ao validar o token.')
       const res  = await fetch(`/api/meta/accounts?workspaceId=${workspaceId}`)
       const json = await res.json()
       if (json.success) {
         setAccounts(json.data)
-        if (json.data.length === 0) setAccountsError('Nenhuma conta de anúncios encontrada para este token.')
+        if (json.data.length === 0) setAccountsError('Nenhuma conta encontrada para este token.')
       } else {
         setAccountsError(json.error ?? 'Erro ao buscar contas.')
       }
     } catch (e) {
-      setAccountsError(e instanceof Error ? e.message : 'Erro ao buscar contas. Verifique o token.')
-    } finally {
-      setLoadingAcc(false)
-    }
+      setAccountsError(e instanceof Error ? e.message : 'Erro ao buscar contas.')
+    } finally { setLoadingAcc(false) }
   }
 
   const useManualId = async () => {
     if (!manualId.trim()) return
-    setManualLoading(true)
-    setManualError(null)
+    setManualLoading(true); setManualError(null)
     try {
       const id  = manualId.trim().replace(/^act_/, '')
       const res  = await fetch(`/api/meta/accounts?workspaceId=${workspaceId}&adAccountId=${id}`)
@@ -186,40 +186,43 @@ function MetaSection({ workspaceId }: { workspaceId: string }) {
   }
 
   const save = async () => {
+    if (!selAccount && !manualId.trim()) return toast.error('Selecione ou informe uma conta de anúncios')
+    if (!token.trim()) return toast.error('Token obrigatório')
     setSaving(true)
-    const body: Record<string, string> = { pageId: pageId.trim() }
-    if (token.trim()) body.metaToken = token.trim()
-    if (selAccount)   body.adAccountId = selAccount
-
-    const res  = await fetch(`/api/workspaces/${workspaceId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    const json = await res.json()
+    const adAccountId   = selAccount || (manualId.trim().replace(/^act_/, ''))
+    const adAccountName = selAccountName || selAccount || manualId
+    try {
+      const res  = await fetch(`/api/workspaces/${workspaceId}/meta-accounts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adAccountId, adAccountName, metaToken: token.trim(), pageId: pageId.trim() || undefined, label: label.trim() || undefined }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        toast.success('Conta vinculada!')
+        onAdded()
+        // Reset form
+        setToken(''); setLabel(''); setPageId(''); setAccounts([]); setSelAccount(''); setSelAccountName(''); setTestResult(null)
+      } else {
+        toast.error(json.error ?? 'Erro ao vincular conta')
+      }
+    } catch { toast.error('Erro ao vincular conta') }
     setSaving(false)
-    if (json.success) { toast.success('Salvo!'); load() }
-    else toast.error(json.error ?? 'Erro ao salvar')
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 pt-1">
       {/* Token */}
       <div>
-        <FieldLabel>
-          Token de Acesso Meta
-          {hasToken && <span className="ml-2 text-emerald-500 text-[10px]">✓ configurado</span>}
-        </FieldLabel>
+        <FieldLabel>Token de Acesso Meta</FieldLabel>
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <input
-              type={showToken ? 'text' : 'password'}
-              value={token}
+            <input type={showToken ? 'text' : 'password'} value={token}
               onChange={e => { setToken(e.target.value); setAccountsError(null) }}
-              placeholder={hasToken ? '••••••••  (deixe vazio para manter)' : 'EAAxxxxxxx...'}
-              className={inputCls + ' pr-9'}
-              style={inputStyle}
-            />
-            <button
-              onClick={() => setShowToken(v => !v)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2"
-              style={{ color: 'var(--t-3)' }}>
+              placeholder="EAAxxxxxxx..."
+              className={inputCls + ' pr-9'} style={inputStyle} />
+            <button onClick={() => setShowToken(v => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--t-3)' }}>
               {showToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             </button>
           </div>
@@ -232,34 +235,33 @@ function MetaSection({ workspaceId }: { workspaceId: string }) {
         {testResult && <div className="mt-2"><StatusBadge ok={testResult.ok} label={testResult.ok ? `Conectado · ${testResult.name}` : 'Token inválido'} /></div>}
       </div>
 
-      {/* Page ID */}
+      {/* Label */}
       <div>
-        <FieldLabel>Page ID (Facebook)</FieldLabel>
-        <input
-          value={pageId}
-          onChange={e => setPageId(e.target.value)}
-          placeholder="Ex: 123456789"
-          className={inputCls}
-          style={inputStyle}
-        />
+        <FieldLabel>Apelido da conta <span className="font-normal opacity-60">(opcional)</span></FieldLabel>
+        <input value={label} onChange={e => setLabel(e.target.value)}
+          placeholder="Ex: BM Principal, BM Clientes…"
+          className={inputCls} style={inputStyle} />
       </div>
 
-      {/* Ad Account */}
+      {/* Page ID */}
+      <div>
+        <FieldLabel>Page ID <span className="font-normal opacity-60">(opcional)</span></FieldLabel>
+        <input value={pageId} onChange={e => setPageId(e.target.value)}
+          placeholder="Ex: 123456789"
+          className={inputCls} style={inputStyle} />
+      </div>
+
+      {/* Account select */}
       <div>
         <FieldLabel>Conta de Anúncios</FieldLabel>
-        {selAccountName && (
-          <p className="text-xs mb-1.5" style={{ color: 'var(--t-2)' }}>Atual: <strong>{selAccountName}</strong></p>
-        )}
         <div className="flex gap-2">
           {accounts.length > 0 ? (
-            <select
-              value={selAccount}
+            <select value={selAccount}
               onChange={e => {
                 setSelAccount(e.target.value)
                 setSelAccountName(accounts.find(a => a.id === e.target.value || `act_${a.account_id}` === e.target.value)?.name ?? '')
               }}
-              className={inputCls + ' flex-1'}
-              style={inputStyle}>
+              className={inputCls + ' flex-1'} style={inputStyle}>
               <option value="">Selecionar conta</option>
               {accounts.map(a => (
                 <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>
@@ -267,40 +269,30 @@ function MetaSection({ workspaceId }: { workspaceId: string }) {
             </select>
           ) : (
             <div className="flex-1 px-3 py-2 rounded-lg text-xs" style={{ background: 'var(--s-850)', border: '1px solid var(--t-border)', color: 'var(--t-3)' }}>
-              {selAccountName ? `Conta salva: ${selAccountName}` : 'Clique em "Buscar" para listar as contas'}
+              Clique em "Buscar" para listar as contas
             </div>
           )}
-          <button
-            onClick={loadAccounts}
-            disabled={loadingAcc || (!token.trim() && !hasToken)}
+          <button onClick={loadAccounts} disabled={loadingAcc || !token.trim()}
             className={btnCls + ' disabled:opacity-40 disabled:cursor-not-allowed'}
-            title={!token.trim() && !hasToken ? 'Insira o token acima primeiro' : 'Buscar contas de anúncios'}
+            title={!token.trim() ? 'Insira o token acima primeiro' : 'Buscar contas de anúncios'}
             style={{ background: 'var(--s-800)', border: '1px solid var(--t-border)', color: 'var(--t-1)' }}>
             <RefreshCw className={`w-3.5 h-3.5 ${loadingAcc ? 'animate-spin' : ''}`} />
             Buscar
           </button>
         </div>
-        {accountsError && (
-          <p className="mt-1.5 text-xs" style={{ color: '#ef4444' }}>{accountsError}</p>
-        )}
+        {accountsError && <p className="mt-1.5 text-xs" style={{ color: '#ef4444' }}>{accountsError}</p>}
 
         {/* Manual ID fallback */}
         <div className="mt-2 rounded-lg px-3 py-2.5 space-y-2" style={{ background: 'var(--s-850)', border: '1px solid var(--t-border)' }}>
           <p className="text-[11px]" style={{ color: 'var(--t-3)' }}>
-            Não encontrou a conta? Cole o ID do Gerenciador de Anúncios Meta (<code className="font-mono">act_XXXXXXXX</code>)
+            Não encontrou a conta? Cole o ID (<code className="font-mono">act_XXXXXXXX</code>)
           </p>
           <div className="flex gap-2">
-            <input
-              value={manualId}
-              onChange={e => { setManualId(e.target.value); setManualError(null) }}
+            <input value={manualId} onChange={e => { setManualId(e.target.value); setManualError(null) }}
               onKeyDown={e => { if (e.key === 'Enter') useManualId() }}
               placeholder="act_123456789 ou 123456789"
-              className={inputCls + ' flex-1 text-xs'}
-              style={inputStyle}
-            />
-            <button
-              onClick={useManualId}
-              disabled={manualLoading || !manualId.trim()}
+              className={inputCls + ' flex-1 text-xs'} style={inputStyle} />
+            <button onClick={useManualId} disabled={manualLoading || !manualId.trim()}
               className={btnCls + ' disabled:opacity-40'}
               style={{ background: 'var(--s-800)', border: '1px solid var(--t-border)', color: 'var(--t-1)' }}>
               <RefreshCw className={`w-3.5 h-3.5 ${manualLoading ? 'animate-spin' : ''}`} />
@@ -312,12 +304,85 @@ function MetaSection({ workspaceId }: { workspaceId: string }) {
       </div>
 
       <button onClick={save} disabled={saving}
-        className="w-full py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 keep-white"
+        className="w-full py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 keep-white flex items-center justify-center gap-2"
         style={{ background: '#0f0f0f', color: 'white' }}
         onMouseEnter={e => (e.currentTarget.style.background = '#222222')}
         onMouseLeave={e => (e.currentTarget.style.background = '#0f0f0f')}>
-        {saving ? 'Salvando…' : 'Salvar Meta Ads'}
+        {saving ? 'Vinculando…' : <><Plus className="w-3.5 h-3.5" />Vincular conta</>}
       </button>
+    </div>
+  )
+}
+
+// ── Meta Ads section ──────────────────────────────────────────────────────────
+function MetaSection({ workspaceId }: { workspaceId: string }) {
+  const [linked,     setLinked]     = useState<LinkedAccount[]>([])
+  const [showForm,   setShowForm]   = useState(false)
+  const [removing,   setRemoving]   = useState<string | null>(null)
+
+  const loadLinked = useCallback(() => {
+    fetch(`/api/workspaces/${workspaceId}/meta-accounts`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setLinked(d.data) })
+  }, [workspaceId])
+
+  useEffect(() => { loadLinked() }, [loadLinked])
+
+  const removeAccount = async (id: string) => {
+    if (!confirm('Remover esta conta de anúncios do dashboard?')) return
+    setRemoving(id)
+    try {
+      const res  = await fetch(`/api/workspaces/${workspaceId}/meta-accounts/${id}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (json.success) { toast.success('Conta removida'); loadLinked() }
+      else toast.error(json.error ?? 'Erro ao remover')
+    } catch { toast.error('Erro ao remover') }
+    setRemoving(null)
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Linked accounts list */}
+      {linked.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[11px] font-medium" style={{ color: 'var(--t-3)' }}>
+            {linked.length === 1 ? '1 conta vinculada' : `${linked.length} contas vinculadas`}
+          </p>
+          {linked.map(acc => (
+            <div key={acc.id} style={{ opacity: removing === acc.id ? 0.5 : 1 }}>
+              <LinkedAccountCard account={acc} onRemove={() => removeAccount(acc.id)} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {linked.length === 0 && !showForm && (
+        <div className="rounded-lg px-3 py-4 text-center" style={{ border: '1px dashed var(--t-border)' }}>
+          <p className="text-xs" style={{ color: 'var(--t-3)' }}>Nenhuma conta vinculada ainda.</p>
+          <p className="text-[11px] mt-1" style={{ color: 'var(--t-3)' }}>Adicione uma ou mais contas de anúncios abaixo.</p>
+        </div>
+      )}
+
+      {/* Toggle add form */}
+      <button
+        onClick={() => setShowForm(v => !v)}
+        className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-colors ${showForm ? '' : ''}`}
+        style={{
+          background: showForm ? 'var(--s-850)' : 'rgba(249,115,22,0.08)',
+          border:     `1px solid ${showForm ? 'var(--t-border)' : 'rgba(249,115,22,0.25)'}`,
+          color:      showForm ? 'var(--t-2)' : '#f97316',
+        }}>
+        {showForm
+          ? <><ChevronUp className="w-3.5 h-3.5" />Cancelar</>
+          : <><PlusCircle className="w-3.5 h-3.5" />Adicionar conta de anúncios</>
+        }
+      </button>
+
+      {showForm && (
+        <div className="rounded-lg p-3" style={{ border: '1px solid var(--t-border)', background: 'var(--s-950)' }}>
+          <AddAccountForm workspaceId={workspaceId} onAdded={() => { loadLinked(); setShowForm(false) }} />
+        </div>
+      )}
     </div>
   )
 }

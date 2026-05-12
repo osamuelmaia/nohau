@@ -1,9 +1,9 @@
 // ── Meta Insights Service ─────────────────────────────────────────────────────
 // Fetches campaign-level performance data from the Meta Marketing API.
-// Used by the Dashboard and Daily Performance pages.
+// Supports multiple ad accounts per workspace — fetches in parallel and merges.
 
 import { MetaApiClient } from './client'
-import { prisma } from '@/services/db/client'
+import { getWorkspaceMetaAccounts, WorkspaceAccount } from './multi-accounts'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface InsightsParams {
@@ -17,6 +17,7 @@ export interface InsightsParams {
 export interface CampaignInsight {
   campaignId:   string
   campaignName: string
+  accountName?: string   // populated when multiple accounts are linked
   date?:        string   // present only when daily=true
   spend:        number
   impressions:  number
@@ -64,25 +65,14 @@ function pickAction(actions: MetaAction[], types: string[]): number {
   return 0
 }
 
-async function getClientAndAccount(workspaceId = 'default') {
-  const settings = await prisma.workspace.findUnique({
-    where: { id: workspaceId },
-    select: { metaToken: true, adAccountId: true },
-  })
-  if (!settings?.metaToken)   throw new Error('Token Meta não configurado')
-  if (!settings?.adAccountId) throw new Error('Conta de anúncios não selecionada')
-
-  const client    = new MetaApiClient(settings.metaToken)
-  const accountId = settings.adAccountId.startsWith('act_')
-    ? settings.adAccountId
-    : `act_${settings.adAccountId}`
-
-  return { client, accountId }
-}
-
-// ── Fetch insights ─────────────────────────────────────────────────────────────
-export async function getInsights(params: InsightsParams): Promise<CampaignInsight[]> {
-  const { client, accountId } = await getClientAndAccount(params.workspaceId)
+// ── Per-account fetch ──────────────────────────────────────────────────────────
+async function fetchInsightsForAccount(
+  account: WorkspaceAccount,
+  params:  InsightsParams,
+  includeAccountName: boolean,
+): Promise<CampaignInsight[]> {
+  const client    = new MetaApiClient(account.metaToken)
+  const accountId = account.adAccountId
 
   const fields = [
     'campaign_id', 'campaign_name',
@@ -164,6 +154,7 @@ export async function getInsights(params: InsightsParams): Promise<CampaignInsig
     return {
       campaignId:      row.campaign_id,
       campaignName:    row.campaign_name,
+      ...(includeAccountName && { accountName: account.label ?? account.adAccountName }),
       date:            row.date_start,
       spend,
       impressions,
@@ -190,18 +181,44 @@ export async function getInsights(params: InsightsParams): Promise<CampaignInsig
   })
 }
 
+// ── Fetch insights ─────────────────────────────────────────────────────────────
+export async function getInsights(params: InsightsParams): Promise<CampaignInsight[]> {
+  const accounts = await getWorkspaceMetaAccounts(params.workspaceId ?? 'default')
+  if (accounts.length === 0) throw new Error('Nenhuma conta de anúncios configurada')
+
+  const includeAccountName = accounts.length > 1
+
+  const results = await Promise.all(
+    accounts.map(acc => fetchInsightsForAccount(acc, params, includeAccountName))
+  )
+
+  return results.flat()
+}
+
 // ── Fetch campaigns list (for filter dropdown) ─────────────────────────────────
 export async function getCampaignsList({ workspaceId }: { workspaceId?: string } = {}): Promise<MetaCampaign[]> {
-  const { client, accountId } = await getClientAndAccount(workspaceId)
+  const accounts = await getWorkspaceMetaAccounts(workspaceId ?? 'default')
+  if (accounts.length === 0) throw new Error('Nenhuma conta de anúncios configurada')
 
-  type CampaignsResp = { data: MetaCampaign[] }
-  const resp = await client.get<CampaignsResp>(`${accountId}/campaigns`, {
-    fields:           'id,name,status,effective_status',
-    limit:            '500',
-    effective_status: JSON.stringify(['ACTIVE', 'PAUSED', 'ARCHIVED', 'IN_PROCESS', 'WITH_ISSUES']),
-  })
+  const results = await Promise.all(
+    accounts.map(async acc => {
+      const client = new MetaApiClient(acc.metaToken)
+      type CampaignsResp = { data: MetaCampaign[] }
+      const resp = await client.get<CampaignsResp>(`${acc.adAccountId}/campaigns`, {
+        fields:           'id,name,status,effective_status',
+        limit:            '500',
+        effective_status: JSON.stringify(['ACTIVE', 'PAUSED', 'ARCHIVED', 'IN_PROCESS', 'WITH_ISSUES']),
+      })
+      return resp.data ?? []
+    })
+  )
 
-  return (resp.data ?? []).sort((a, b) => a.name.localeCompare(b.name))
+  const all = results.flat()
+  // Deduplicate by campaign ID (shouldn't happen but safety net) and sort
+  const seen = new Set<string>()
+  return all
+    .filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true })
+    .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 // ── Aggregate helper (for overview tab totals) ─────────────────────────────────

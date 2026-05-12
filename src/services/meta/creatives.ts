@@ -1,8 +1,9 @@
 // ── Meta Creatives / Ad-level Insights ────────────────────────────────────────
 // Fetches performance data at the ad level and joins creative thumbnails.
+// Supports multiple ad accounts per workspace — fetches in parallel and merges.
 
 import { MetaApiClient } from './client'
-import { prisma } from '@/services/db/client'
+import { getWorkspaceMetaAccounts, WorkspaceAccount } from './multi-accounts'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface AdInsight {
@@ -12,6 +13,7 @@ export interface AdInsight {
   adSetName:    string
   campaignId:   string
   campaignName: string
+  accountName?: string
   thumbnailUrl?: string
   spend:        number
   impressions:  number
@@ -49,30 +51,14 @@ function pickAction(actions: MetaAction[], types: string[]): number {
   return 0
 }
 
-async function getClientAndAccount(workspaceId = 'default') {
-  const settings = await prisma.workspace.findUnique({
-    where:  { id: workspaceId },
-    select: { metaToken: true, adAccountId: true },
-  })
-  if (!settings?.metaToken)   throw new Error('Token Meta não configurado')
-  if (!settings?.adAccountId) throw new Error('Conta de anúncios não selecionada')
-
-  const client    = new MetaApiClient(settings.metaToken)
-  const accountId = settings.adAccountId.startsWith('act_')
-    ? settings.adAccountId
-    : `act_${settings.adAccountId}`
-
-  return { client, accountId }
-}
-
-// ── Main function ─────────────────────────────────────────────────────────────
-export async function getAdInsights(params: {
-  startDate:    string
-  endDate:      string
-  campaignIds?: string[]
-  workspaceId?: string
-}): Promise<AdInsight[]> {
-  const { client, accountId } = await getClientAndAccount(params.workspaceId)
+// ── Per-account fetch ──────────────────────────────────────────────────────────
+async function fetchAdInsightsForAccount(
+  account: WorkspaceAccount,
+  params: { startDate: string; endDate: string; campaignIds?: string[] },
+  includeAccountName: boolean,
+): Promise<AdInsight[]> {
+  const client    = new MetaApiClient(account.metaToken)
+  const accountId = account.adAccountId
 
   // ── 1. Fetch ad-level insights ─────────────────────────────────────────────
   const fields = [
@@ -175,6 +161,7 @@ export async function getAdInsights(params: {
       adSetName:    row.adset_name,
       campaignId:   row.campaign_id,
       campaignName: row.campaign_name,
+      ...(includeAccountName && { accountName: account.label ?? account.adAccountName }),
       thumbnailUrl: thumbnailMap.get(row.ad_id),
       spend,
       impressions,
@@ -198,4 +185,23 @@ export async function getAdInsights(params: {
       costPerInitiateCheckout: initiateCheckout > 0 ? spend / initiateCheckout      : 0,
     }
   })
+}
+
+// ── Main function ─────────────────────────────────────────────────────────────
+export async function getAdInsights(params: {
+  startDate:    string
+  endDate:      string
+  campaignIds?: string[]
+  workspaceId?: string
+}): Promise<AdInsight[]> {
+  const accounts = await getWorkspaceMetaAccounts(params.workspaceId ?? 'default')
+  if (accounts.length === 0) throw new Error('Nenhuma conta de anúncios configurada')
+
+  const includeAccountName = accounts.length > 1
+
+  const results = await Promise.all(
+    accounts.map(acc => fetchAdInsightsForAccount(acc, params, includeAccountName))
+  )
+
+  return results.flat()
 }
