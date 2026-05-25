@@ -1,0 +1,31 @@
+// Prisma schema mínimo para a feature YouTube Ops
+// Substitua DATABASE_URL pelo seu banco PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Armazena cada geração para o histórico
+model YoutubeJob {
+  id         String   @id @default(cuid())
+  transcript String
+  profile    String
+  result     String   // JSON: { titles, descriptions, hashtags, tags, summary }
+  createdAt  DateTime @default(now())
+}
+
+// Configurações globais (chave OpenAI + prompt customizado)
+// Se sua aplicação já tem uma tabela de settings, adicione apenas os campos:
+//   openaiKey     String?
+//   youtubePrompt String?
+model Settings {
+  id            String   @id @default("default")
+  openaiKey     String?
+  youtubePrompt String?
+  updatedAt     DateTime @updatedAt
+}
