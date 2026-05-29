@@ -1,5 +1,5 @@
-import { NavHeader }      from '@/components/NavHeader'
-import { SettingsDrawer } from '@/components/SettingsDrawer'
+import NavHeader from '@/components/NavHeader'
+import SettingsDrawer from '@/components/SettingsDrawer'
 import { Toaster }        from 'react-hot-toast'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
